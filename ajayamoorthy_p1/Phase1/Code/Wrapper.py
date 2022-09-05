@@ -19,6 +19,27 @@ import cv2
 
 # Add any python libraries here
 
+class MyPano:
+	def __init__(self) -> None:
+		pass
+	def corner_detection(self,Image,block_size,sobel_size):
+		"""Using Harris Corners to detect the corners in a given image
+		Based on  https://docs.opencv.org/3.4/dc/d0d/tutorial_py_features_harris.html
+		"""
+
+		gray_img = np.float32(cv2.cvtColor(Image, cv2.COLOR_BGR2GRAY))  # converting the image to gray scale and then to float32 
+		
+		dst = cv2.cornerHarris(gray_img,block_size,sobel_size,0.04)
+
+		# Image[dst>0.01 *dst.max()] = [0,0,255]  #Giving a color for corners
+		return dst
+
+		
+
+
+
+
+
 
 def main():
     # Add any Command Line arguments here
