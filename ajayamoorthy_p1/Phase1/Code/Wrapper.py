@@ -45,6 +45,7 @@ class MyPano:
 		return Image 
 
 	def ANMS(self,C_Img,N_best):
+
 		#C_Image - Corner Score Image 
 		#N_best - Number of best corners needed
 
@@ -59,7 +60,8 @@ class MyPano:
 		r[:] = float("inf")
 		index = 0 
 		for i in coordinates:
-			best_coordinates[i][0] = i[1]
+
+			best_coordinates[i][0] = i[1]  #inverted row and column indices 
 			best_coordinates[i][1] = i[0]
 			ED = float("inf")
 			for j in coordinates:
@@ -68,8 +70,8 @@ class MyPano:
 				if (ED < r[index][2]):
 					r[index][0] = ED
 			index+=1
-		best_coordinates[np.argsort(r)]
-		
+		best_coordinates = best_coordinates[np.argsort(r)]
+
 		return best_coordinates[0:N_best,:]
 
 
@@ -83,23 +85,13 @@ def main():
 	
 	image_path = "Phase1/Data/Train/Set1/1.jpg"
 	image_path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p1/Phase1/Data/Train/Set1/1.jpg"
-
 	Image = cv2.imread(image_path)
-	cv2.imshow('dst',Image)
-	if cv2.waitKey(0) & 0xff == 27:
-		cv2.destroyAllWindows()
-	coordinates = peak_local_max(Image, min_distance=20)
-	# print(coordinates.shape)
 
+	pano = MyPano()
 
+	corner_score_image = pano.corner_detection(Image,2,3)
 
-	# print(Image)
-
-	# pano = MyPano()
-
-	# corner_score_image = pano.corner_detection(Image,2,3)
-
-	# print(pano.ANMS(Image,100))
+	print(pano.ANMS(Image,100))
 
     # """
     # Read a set of images for Panorama stitching
