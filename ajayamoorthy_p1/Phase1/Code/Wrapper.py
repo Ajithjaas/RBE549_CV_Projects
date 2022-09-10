@@ -51,7 +51,6 @@ class MyPano:
 		r = np.zeros((coordinates.shape[0], 1), dtype=np.float32) 
 		r[:] = np.inf #float("inf")
 		index = 0 
-		
 		for i in coordinates:
 			yi,xi = i
 			ED = np.inf 
@@ -64,6 +63,28 @@ class MyPano:
 			index+=1
 		best_coordinates = coordinates[np.flip(np.argsort(r[:,0]))] #descending order 
 		return best_coordinates[0:N_best,:]
+
+	def featureDesriptor(self,Image,coordinate,patch_size=40):
+		x,y = coordinate
+		gray_img = np.float32(cv2.cvtColor(Image, cv2.COLOR_BGR2GRAY))
+		patch = gray_img[x-patch_size//2:x+patch_size//2, y-patch_size//2:y+patch_size//2]  #Take a patch of size 40×40 centered (this is very important) around the keypoint/feature point
+		gaussian = cv2.GaussianBlur(patch,(5,5),cv2.BORDER_DEFAULT)  
+		#Now, sub-sample the blurred output (this reduces the dimension) to 8×8.
+		resampled_img = cv2.resize(gaussian,(8,8),interpolation = cv2.INTER_AREA)
+		reshaped_img = resampled_img.reshape(-1) #Then reshape to obtain a 64×1 vector
+		#Standardize the vector to have zero mean and variance of 1.
+		# Standardization is used to remove bias and to achieve some amount of 
+		# illumination invariance.
+		# See https://bookdown.org/ndphillips/YaRrr/standardization-z-score.html
+		mean = resampled_img.mean() 
+		std = resampled_img.std()
+		return (resampled_img -mean)/std 
+
+
+
+
+
+
 
 
 def main():
