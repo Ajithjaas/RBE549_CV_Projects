@@ -15,16 +15,15 @@ Worcester Polytechnic Institute
 # Code starts here:
 
 from email.headerregistry import ContentTransferEncodingHeader
+from ssl import SSLSocket
 import numpy as np
 import cv2
 import argparse
 import matplotlib.pyplot as plt 
 from skimage import feature 
 from scipy.spatial import distance
-
-
+import random 
 # Add any python libraries here
-
 class MyPano:
 	def __init__(self) -> None:
 		pass
@@ -32,6 +31,23 @@ class MyPano:
 		cv2.imshow(name,Image)
 		if cv2.waitKey(0) & 0xff == 27:
 			cv2.destroyAllWindows()
+	def draw_matches(self,Image1,Image2,matches):
+		# Image1 = Img1.copy()
+		# Image2 = Img2.copy()
+		height1,width1 = Image1.shape[:2]
+		height2,width2 = Image2.shape[:2]
+		match_image = np.zeros((max(height1, height2), width1 + width2, 3), dtype="uint8")
+		match_image[0:height1, 0:width1] = Image1
+		match_image[0:height2, width1:] = Image2
+
+		for match in matches:
+			point1 = (match[0][1],match[0][0])
+			point2 = (match[1][1]+width1,match[1][0])
+			cv2.circle(match_image,point1,2,255, -1)
+			cv2.circle(match_image,point2,2,255, -1)
+			cv2.line(match_image, point1, point2, (0, 0, 255), 1)
+		return match_image
+
 	def corner_detection(self,Image,block_size,sobel_size):
 		"""Using Harris Corners to detect the corners in a given image
 		Based on  https://docs.opencv.org/3.4/dc/d0d/tutorial_py_features_harris.html
@@ -85,10 +101,8 @@ class MyPano:
 		std = resampled_img.std()
 		return (resampled_img -mean)/std 
 	
-	def featureMatching(self,Image1,Coordinates_1,Image2,Coordinates_2,ratio,patch = 40 ):
+	def featureMatching(self,Image_1,Coordinates_1,Image_2,Coordinates_2,ratio,patch = 40 ):
 		"""finding feature correspondences between the 2 images"""
-		Image_1 = Image1.copy()
-		Image_2 = Image2.copy()
 		def ssd(A,B):
 			# Taken from https://stackoverflow.com/a/58589090/5658788
 			dif = A.ravel() - B.ravel()
@@ -101,14 +115,7 @@ class MyPano:
 				if (i - (patch/ 2) > 0) & (i + (patch / 2) < width) & (j - (patch/ 2) > 0) & (j + (patch / 2) < height):
 					temp_array.append([i,j])
 			return temp_array
-		
-		width1, height1 = Image_1.shape[:2]
-		width2, height2 = Image_2.shape[:2]
-		Coordinates_1 = filter_coordinates(Coordinates_1,width1,height1)
-		Coordinates_2 = filter_coordinates(Coordinates_2,width2,height2)
 	
-		features2 = [self.featureDescriptor(Image_2,coordinate) for coordinate in Coordinates_2]
-		matches =[]
 		"""Pick a point in image 1, compute sum of square differences between 
 		all points in image 2. Take the ratio of best match (lowest distance) to 
 		the second best match (second lowest distance) and if this is below some 
@@ -117,22 +124,57 @@ class MyPano:
 		will be used to estimate the transformation between the 2 images, also called as 
 		Homography"""
 		# FIrst make sure the patches in the edges are ignored
-		
+		width1, height1 = Image_1.shape[:2]
+		width2, height2 = Image_2.shape[:2]
+		Coordinates_1 = filter_coordinates(Coordinates_1,width1,height1)
+		Coordinates_2 = filter_coordinates(Coordinates_2,width2,height2)
+	
+		features2 = [self.featureDescriptor(Image_2,coordinate) for coordinate in Coordinates_2]
+		matches =[]
 		for coordinate in Coordinates_1:
 			feature_1 = self.featureDescriptor(Image_1,coordinate)
 			SSDs = np.array([ssd(feature_1,feature_2) for feature_2 in features2])
 			ids = np.argpartition(SSDs, 2) # finding the indices of two smallest values 
 			low_id = ids[0] 
 			lowest,second_lowest = SSDs[ids[:2]]
-
 			if lowest/second_lowest <ratio:
 				matches.append([coordinate , Coordinates_2[low_id]])
+
 		return Coordinates_1,Coordinates_2,matches 
+
+	def RANSAC(self,matches,threshold,Nmax=10000):
+		"""We now have matched all the features correspondences 
+		but not all matches will be right. To remove incorrect matches, 
+		we will use a robust method called Random Sample Concensus or RANSAC 
+		to compute homography."""
+		matches = np.asarray(matches)
+		Pi = matches[:,0]
+		Pi_dash = matches[:,1]  #Separating two coordinates in a pair 
+		ones = np.ones((len(Pi), 1)) 
+		inliers_best = 0
+		for _ in range(Nmax):
+			#step-1 : Select four feature pairs
+			four_random_indices = random.sample(range(len(matches)),4) 
+			four_random_pairs = matches[four_random_indices]
+			Pi4 = four_random_pairs[:,0]
+			Pi4_dash = four_random_pairs[:,1]
+
+			#Step-2 : Compute homography H between the previously picked point pairs.
+			H = cv2.getPerspectiveTransform(np.float32(Pi4), np.float32(Pi4_dash))
+			Hpi = np.dot(H,np.transpose(np.hstack((Pi,ones))))
+			Hpi = np.transpose(Hpi[:2,:]/(Hpi[2,:] + 1e-10)) #normalizing the HPi
+			#Step-3 : 
+			SSDs = np.apply_along_axis(np.linalg.norm, 1, Pi_dash -Hpi)**2 #compute SSD
+			SSDs[SSDs<=threshold] = 1
+			SSDs[SSDs>threshold]  = 0
+			inliers = np.sum(SSDs)
+			if inliers > inliers_best:
+				inliers_best =inliers
+				H_best = H
+				inlier_inds = np.where(SSDs== 1)
+		return Pi[inlier_inds],Pi_dash[inlier_inds],matches[inlier_inds]
+
 	
-	
-
-
-
 def main():
 	# Add any Command Line arguments here
 	Parser = argparse.ArgumentParser()
@@ -153,10 +195,7 @@ def main():
 	Image2 = cv2.imread(Image2_path)
 	Image3 = cv2.imread(Image3_path)
 	panorama.plot_image(Image1,"input")
-	# cv2.imshow('input',Image1)
-	# if cv2.waitKey(0) & 0xff == 27:
-	# 		cv2.destroyAllWindows()
-
+	
     # """
 	# Corner Detection
 	# Save Corner detection output as corners.png
@@ -176,11 +215,8 @@ def main():
 	anms3 = panorama.ANMS(dst3,200)
 	for coordinate in anms1:
 		i,j= int(coordinate[1]),int(coordinate[0])
-		# Image[i][j] = [0,0,255] 
 		cv2.circle(Image1,(i,j),2,255, -1)
-	
 	panorama.plot_image(Image1,"anms")
-
 
     # """
 	# Feature Descriptors
@@ -193,25 +229,18 @@ def main():
 	# """
 
 	k1,k2,matches = panorama.featureMatching(Image1,anms1,Image2,anms2,1)
-	#Drawing matches 
-	height1,width1 = Image1.shape[:2]
-	height2,width2 = Image2.shape[:2]
-	match_image = np.zeros((max(height1, height2), width1 + width2, 3), dtype="uint8")
-	match_image[0:height1, 0:width1] = Image1
-	match_image[0:height2, width1:] = Image2
-
-	for match in matches:
-		point1 = (match[0][1],match[0][0])
-		point2 = (match[1][1]+width1,match[1][0])
-		cv2.circle(match_image,point1,2,255, -1)
-		cv2.circle(match_image,point2,2,255, -1)
-		cv2.line(match_image, point1, point2, (0, 0, 255), 1)
-
+	#Drawing matches  . cv2.Drawmatches did not work , hence writing my own match plotting
+	match_image = panorama.draw_matches(Image1,Image2,matches)
 	panorama.plot_image(match_image,"Matches")
 
     # """
 	# Refine: RANSAC, Estimate Homography
 	# """
+	k1,k2,matches = panorama.RANSAC(matches,100)
+	# Image1 = cv2.imread(Image1_path)
+	# Image2 = cv2.imread(Image2_path)
+	inliers_image = panorama.draw_matches(Image1,Image2,matches)
+	panorama.plot_image(inliers_image,"RANSAC")
 
     # """
 	# Image Warping + Blending
