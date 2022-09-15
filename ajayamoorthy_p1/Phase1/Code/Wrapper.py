@@ -15,6 +15,7 @@ Worcester Polytechnic Institute
 # Code starts here:
 
 from email.headerregistry import ContentTransferEncodingHeader
+from socketserver import ThreadingMixIn
 from ssl import SSLSocket
 import numpy as np
 import cv2
@@ -112,7 +113,7 @@ class MyPano:
 			temp_array =[]
 			for coordinate in Coordinates:
 				i,j = coordinate 
-				if (i - (patch/ 2) > 0) & (i + (patch / 2) < width) & (j - (patch/ 2) > 0) & (j + (patch / 2) < height):
+				if (i - (patch/ 2) > 0) & (i + (patch / 2) < height) & (j - (patch/ 2) > 0) & (j + (patch / 2) < width):
 					temp_array.append([i,j])
 			return temp_array
 	
@@ -124,8 +125,8 @@ class MyPano:
 		will be used to estimate the transformation between the 2 images, also called as 
 		Homography"""
 		# FIrst make sure the patches in the edges are ignored
-		width1, height1 = Image_1.shape[:2]
-		width2, height2 = Image_2.shape[:2]
+		height1,width1 = Image_1.shape[:2]
+		height2,width2 = Image_2.shape[:2]
 		Coordinates_1 = filter_coordinates(Coordinates_1,width1,height1)
 		Coordinates_2 = filter_coordinates(Coordinates_2,width2,height2)
 	
@@ -158,9 +159,8 @@ class MyPano:
 			four_random_pairs = matches[four_random_indices]
 			Pi4 = four_random_pairs[:,0]
 			Pi4_dash = four_random_pairs[:,1]
-
 			#Step-2 : Compute homography H between the previously picked point pairs.
-			H = cv2.getPerspectiveTransform(np.float32(Pi4), np.float32(Pi4_dash))
+			H = cv2.getPerspectiveTransform(np.float32(Pi4), np.float32(Pi4_dash)) # See https://www.youtube.com/watch?v=PtCQH93GucA&ab_channel=Pysource to understand this concept 
 			Hpi = np.dot(H,np.transpose(np.hstack((Pi,ones))))
 			Hpi = np.transpose(Hpi[:2,:]/(Hpi[2,:] + 1e-10)) #normalizing the HPi
 			#Step-3 : 
@@ -172,9 +172,11 @@ class MyPano:
 				inliers_best =inliers
 				H_best = H
 				inlier_inds = np.where(SSDs== 1)
-		return Pi[inlier_inds],Pi_dash[inlier_inds],matches[inlier_inds]
+		return Pi[inlier_inds],Pi_dash[inlier_inds],matches[inlier_inds],H_best
 
-	
+	def Blending(self,Image1,Image2,filtered_matches,H):
+		pass
+		
 def main():
 	# Add any Command Line arguments here
 	Parser = argparse.ArgumentParser()
@@ -194,8 +196,10 @@ def main():
 	Image1 = cv2.imread(Image1_path)
 	Image2 = cv2.imread(Image2_path)
 	Image3 = cv2.imread(Image3_path)
-	panorama.plot_image(Image1,"input")
-	
+	panorama.plot_image(Image1,"input1")
+	panorama.plot_image(Image2,"input2")
+	panorama.plot_image(Image3,"input3")
+
     # """
 	# Corner Detection
 	# Save Corner detection output as corners.png
@@ -205,6 +209,9 @@ def main():
 	corner_score_image2,dst2 = panorama.corner_detection(Image2,2,3)
 	corner_score_image3,dst3 = panorama.corner_detection(Image3,2,3)
 	panorama.plot_image(corner_score_image1,"corners")
+	cv2.imwrite('corners1.png',corner_score_image1)
+	cv2.imwrite('corners2.png',corner_score_image2)
+	cv2.imwrite('corners3.png',corner_score_image3)
 
     # """
 	# Perform ANMS: Adaptive Non-Maximal Suppression
@@ -213,11 +220,28 @@ def main():
 	anms1 = panorama.ANMS(dst1,200)
 	anms2 = panorama.ANMS(dst2,200)
 	anms3 = panorama.ANMS(dst3,200)
+	img1 = Image1.copy()
+	img2 = Image2.copy()
+	img3 = Image3.copy()
+
 	for coordinate in anms1:
 		i,j= int(coordinate[1]),int(coordinate[0])
-		cv2.circle(Image1,(i,j),2,255, -1)
-	panorama.plot_image(Image1,"anms")
+		cv2.circle(img1,(i,j),2,(0,0,255), -1)
+	panorama.plot_image(img1,"anms1")
+	cv2.imwrite('anms1.png',img1)
 
+	for coordinate in anms2:
+		i,j= int(coordinate[1]),int(coordinate[0])
+		cv2.circle(img2,(i,j),2,(0,0,255), -1)
+	panorama.plot_image(img2,"anms2")
+	cv2.imwrite('anms2.png',img2)
+
+	for coordinate in anms3:
+		i,j= int(coordinate[1]),int(coordinate[0])
+		cv2.circle(img3,(i,j),2,(0,0,255), -1)
+	panorama.plot_image(img3,"anms3")
+	cv2.imwrite('anms3.png',img3)
+	
     # """
 	# Feature Descriptors
 	# Save Feature Descriptor output as FD.png
@@ -228,27 +252,45 @@ def main():
 	# Save Feature Matching output as matching.png
 	# """
 
-	k1,k2,matches = panorama.featureMatching(Image1,anms1,Image2,anms2,1)
+	k1,k2,matches12 = panorama.featureMatching(Image1,anms1,Image2,anms2,1)
 	#Drawing matches  . cv2.Drawmatches did not work , hence writing my own match plotting
-	match_image = panorama.draw_matches(Image1,Image2,matches)
-	panorama.plot_image(match_image,"Matches")
+	match_image = panorama.draw_matches(Image1,Image2,matches12)
+	panorama.plot_image(match_image,"Matches12")
 
+	cv2.imwrite('matching12.png',match_image)
+	k1,k2,matches23 = panorama.featureMatching(Image2,anms2,Image3,anms3,1)
+	match_image = panorama.draw_matches(Image2,Image3,matches23)
+	panorama.plot_image(match_image,"Matches23")
+	cv2.imwrite('matching23.png',match_image)
+
+	k1,k2,matches31 = panorama.featureMatching(Image3,anms3,Image1,anms1,1)
+	match_image = panorama.draw_matches(Image3,Image1,matches31)
+	panorama.plot_image(match_image,"Matches31")
+	cv2.imwrite('matching31.png',match_image)
     # """
 	# Refine: RANSAC, Estimate Homography
 	# """
-	k1,k2,matches = panorama.RANSAC(matches,100)
-	# Image1 = cv2.imread(Image1_path)
-	# Image2 = cv2.imread(Image2_path)
-	inliers_image = panorama.draw_matches(Image1,Image2,matches)
-	panorama.plot_image(inliers_image,"RANSAC")
+	k1,k2,filtered_matches12,H_best = panorama.RANSAC(matches12,100)
+	inliers_image12 = panorama.draw_matches(Image1,Image2,filtered_matches12)
+	panorama.plot_image(inliers_image12,"RANSAC12")
+	cv2.imwrite('inliers12.png',inliers_image12)
+
+	k1,k2,filtered_matches23,H_best = panorama.RANSAC(matches23,100)
+	inliers_image23 = panorama.draw_matches(Image2,Image3,filtered_matches23)
+	panorama.plot_image(inliers_image23,"RANSAC23")
+	cv2.imwrite('inliers23.png',inliers_image23)
+
+	k1,k2,filtered_matches31,H_best = panorama.RANSAC(matches31,100)
+	inliers_image31 = panorama.draw_matches(Image3,Image1,filtered_matches31)
+	panorama.plot_image(inliers_image31,"RANSAC31")
+	cv2.imwrite('inliers31.png',inliers_image31)
 
     # """
 	# Image Warping + Blending
 	# Save Panorama output as mypano.png
 	# """
+	image_stitched = panorama.Blending(Image1,Image2,filtered_matches12,H_best)
+	# panorama.plot_image(image_stitched,"stitch")
 	
-	
-
-
 if __name__ == "__main__":
     main()
