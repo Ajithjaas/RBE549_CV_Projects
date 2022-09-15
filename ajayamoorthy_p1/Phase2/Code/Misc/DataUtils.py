@@ -11,12 +11,14 @@ University of Maryland, College Park
 """
 
 import os
+from pickletools import float8
 import cv2
 import numpy as np
 import random
 import skimage
 import PIL
 import sys
+import re
 
 # Don't generate pyc codes
 sys.dont_write_bytecode = True
@@ -53,11 +55,11 @@ def SetupAll(BasePath, CheckPointPath):
     NumTestRunsPerEpoch = 5
 
     # Image Input Shape
-    ImageSize = [32, 32, 3]
+    ImageSize = [64, 64, 2]
     NumTrainSamples = len(DirNamesTrain)
 
     # Number of classes
-    NumClasses = 10
+    NumClasses = 8
 
     return (
         DirNamesTrain,
@@ -76,8 +78,11 @@ def ReadLabels(LabelsPathTrain):
     else:
         TrainLabels = open(LabelsPathTrain, "r")
         TrainLabels = TrainLabels.read()
-        TrainLabels = list(map(float, TrainLabels.split()))
-
+        # TrainLabels = list(map(float, TrainLabels.split()))
+        # print(TrainLabels)
+        TrainLabels = np.array(re.split(",|\n",TrainLabels)[:-1],dtype=int)
+        TrainLabels = TrainLabels.reshape(-1,9)
+        TrainLabels = dict(zip(TrainLabels[:,0],TrainLabels[:,1:]))
     return TrainLabels
 
 

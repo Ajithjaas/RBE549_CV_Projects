@@ -15,45 +15,42 @@ import sys
 import torch
 import numpy as np
 import torch.nn.functional as F
+import pytorch_lightning as pl
 import kornia  # You can use this to get the transform and warp in this project
 
 # Don't generate pyc codes
 sys.dont_write_bytecode = True
 
 
-def LossFn(delta, img_a, patch_b, corners):
+def LossFn(delta, corners):
     ###############################################
     # Fill your loss function of choice here!
     ###############################################
-
-    ###############################################
-    # You can use kornia to get the transform and warp in this project
-    # Bonus if you implement it yourself
-    ###############################################
-    loss = ...
+    Loss = nn.MSELoss()
+    loss = Loss(delta,corners)
+    # print("\n",loss)
     return loss
 
 
 class HomographyModel(pl.LightningModule):
-    def __init__(self, hparams):
-        super(HomographyModel, self).__init__()
-        self.hparams = hparams
-        self.model = Net()
+    def __init__(self, InputSize,OutputSize):
+        super(HomographyModel, self).__init__()                                                                          
+        self.model = Net(InputSize,OutputSize)
 
-    def forward(self, a, b):
-        return self.model(a, b)
+    def forward(self, b):
+        return self.model(b)
 
-    def training_step(self, batch, batch_idx):
-        img_a, patch_a, patch_b, corners, gt = batch
-        delta = self.model(patch_a, patch_b)
-        loss = LossFn(delta, img_a, patch_b, corners)
+    def training_step(self, batch):
+        patch, corners = batch
+        delta = self.model(patch)
+        loss = LossFn(delta, corners)
         logs = {"loss": loss}
         return {"loss": loss, "log": logs}
 
-    def validation_step(self, batch, batch_idx):
-        img_a, patch_a, patch_b, corners, gt = batch
-        delta = self.model(patch_a, patch_b)
-        loss = LossFn(delta, img_a, patch_b, corners)
+    def validation_step(self, batch):
+        patch, corners = batch
+        delta = self.model(patch)
+        loss = LossFn(delta, corners)
         return {"val_loss": loss}
 
     def validation_epoch_end(self, outputs):
@@ -73,49 +70,32 @@ class Net(nn.Module):
         #############################
         # Fill your network initialization of choice here!
         #############################
-        ...
-        #############################
-        # You will need to change the input size and output
-        # size for your Spatial transformer network layer!
-        #############################
-        # Spatial transformer localization-network
-        self.localization = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=7),
-            nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True),
-            nn.Conv2d(8, 10, kernel_size=5),
-            nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True),
-        )
+        ''' CNN model'''
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(2, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(), 
+            nn.MaxPool2d(kernel_size = 2, stride = 2))
+        self.layer3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU())
+        self.layer4 = nn.Sequential(
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size = 2, stride = 2))
+        self.fc1 = nn.Sequential(
+            nn.Linear(int(InputSize[0]/4)*int(InputSize[1]/4)*128, 4096),
+            nn.ReLU()) 
+        self.fc2= nn.Sequential(
+            nn.Linear(4096, OutputSize))
 
-        # Regressor for the 3 * 2 affine matrix
-        self.fc_loc = nn.Sequential(
-            nn.Linear(10 * 3 * 3, 32), nn.ReLU(True), nn.Linear(32, 3 * 2)
-        )
-
-        # Initialize the weights/bias with identity transformation
-        self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(
-            torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float)
-        )
-
-    #############################
-    # You will need to change the input size and output
-    # size for your Spatial transformer network layer!
-    #############################
-    def stn(self, x):
-        "Spatial transformer network forward function"
-        xs = self.localization(x)
-        xs = xs.view(-1, 10 * 3 * 3)
-        theta = self.fc_loc(xs)
-        theta = theta.view(-1, 2, 3)
-
-        grid = F.affine_grid(theta, x.size())
-        x = F.grid_sample(x, grid)
-
-        return x
-
-    def forward(self, xa, xb):
+    def forward(self, xb):
         """
         Input:
         xa is a MiniBatch of the image a
@@ -126,4 +106,11 @@ class Net(nn.Module):
         #############################
         # Fill your network structure of choice here!
         #############################
+        out = self.layer1(xb)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = torch.flatten(out, 1)
+        out = self.fc1(out)
+        out = self.fc2(out)
         return out

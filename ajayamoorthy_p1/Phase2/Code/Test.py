@@ -35,6 +35,12 @@ from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 import torch
 
+if torch.cuda.is_available():
+  device = torch.device("cuda")
+else:
+  device = torch.device("cpu")
+print(torch.cuda.get_device_name())
+
 
 # Don't generate pyc codes
 sys.dont_write_bytecode = True

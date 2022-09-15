@@ -18,12 +18,14 @@ Worcester Polytechnic Institute
 # skimage, do (apt install python-skimage)
 # termcolor, do (pip install termcolor)
 
+from unittest.mock import patch
 import torch
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
 from torch.optim import AdamW
 from Network.Network import HomographyModel
+# from Network import LossFn
 import cv2
 import sys
 import os
@@ -49,6 +51,13 @@ import math as m
 from tqdm import tqdm
 
 
+if torch.cuda.is_available():
+  device = torch.device("cuda")
+  torch.cuda.empty_cache()
+else:
+  device = torch.device("cpu")
+print(torch.cuda.get_device_name())
+
 def GenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize):
     """
     Inputs:
@@ -71,20 +80,22 @@ def GenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatc
         # Generate random image
         RandIdx = random.randint(0, len(DirNamesTrain) - 1)
 
-        RandImageName = BasePath + os.sep + DirNamesTrain[RandIdx] + ".jpg"
+        RandImageName = BasePath + os.sep + DirNamesTrain[RandIdx] + ".npy"
         ImageNum += 1
 
         ##########################################################
         # Add any standardization or data augmentation here!
         ##########################################################
-        I1 = np.float32(cv2.imread(RandImageName))
-        Coordinates = TrainCoordinates[RandIdx]
+        patch = np.float32(np.load(RandImageName))
+        To_Tensor = ToTensor()
+        I1 = To_Tensor(patch)
+        Coordinates = TrainCoordinates[RandIdx+1]
+        # print(Coordinates)
 
         # Append All Images and Mask
-        I1Batch.append(torch.from_numpy(I1))
-        CoordinatesBatch.append(torch.tensor(Coordinates))
-
-    return torch.stack(I1Batch), torch.stack(CoordinatesBatch)
+        I1Batch.append(I1)
+        CoordinatesBatch.append(torch.tensor(Coordinates,dtype=torch.float32))
+    return torch.stack(I1Batch).to(device), torch.stack(CoordinatesBatch).to(device)
 
 
 def PrettyPrint(NumEpochs, DivTrain, MiniBatchSize, NumTrainSamples, LatestFile):
@@ -113,6 +124,7 @@ def TrainOperation(
     BasePath,
     LogsPath,
     ModelType,
+    NumClasses
 ):
     """
     Inputs:
@@ -129,17 +141,18 @@ def TrainOperation(
     LatestFile - Latest checkpointfile to continue training
     BasePath - Path to COCO folder without "/" at the end
     LogsPath - Path to save Tensorboard Logs
-        ModelType - Supervised or Unsupervised Model
+    ModelType - Supervised or Unsupervised Model
     Outputs:
     Saves Trained network in CheckPointPath and Logs to LogsPath
     """
     # Predict output with forward pass
-    model = HomographyModel()
+    model = HomographyModel(ImageSize,NumClasses)
+    model.to(device)
 
     ###############################################
     # Fill your optimizer of choice here!
     ###############################################
-    Optimizer = ...
+    Optimizer = torch.optim.SGD(model.parameters(),lr = 0.001)
 
     # Tensorboard
     # Create a summary to monitor loss tensor
@@ -158,17 +171,18 @@ def TrainOperation(
     for Epochs in tqdm(range(StartEpoch, NumEpochs)):
         NumIterationsPerEpoch = int(NumTrainSamples / MiniBatchSize / DivTrain)
         for PerEpochCounter in tqdm(range(NumIterationsPerEpoch)):
-            I1Batch, CoordinatesBatch = GenerateBatch(
+            I1Batch = GenerateBatch(
                 BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize
             )
 
             # Predict output with forward pass
-            PredicatedCoordinatesBatch = model(I1Batch)
-            LossThisBatch = LossFn(PredicatedCoordinatesBatch, CoordinatesBatch)
-
+            LossThisBatch = model.training_step(I1Batch)
+    
             Optimizer.zero_grad()
-            LossThisBatch.backward()
+            # print(LossThisBatch["loss"])
+            LossThisBatch["loss"].backward()
             Optimizer.step()
+            # Optimizer.step(1)
 
             # Save checkpoint every some SaveCheckPoint's iterations
             if PerEpochCounter % SaveCheckPoint == 0:
@@ -192,7 +206,7 @@ def TrainOperation(
                 )
                 print("\n" + SaveName + " Model Saved...")
 
-            result = model.validation_step(Batch)
+            result = model.validation_step(I1Batch)
             # Tensorboard
             Writer.add_scalar(
                 "LossEveryIter",
@@ -227,8 +241,8 @@ def main():
     Parser = argparse.ArgumentParser()
     Parser.add_argument(
         "--BasePath",
-        default="/home/lening/workspace/rbe549/YourDirectoryID_p1/Phase2/Data",
-        help="Base path of images, Default:/home/lening/workspace/rbe549/YourDirectoryID_p1/Phase2/Data",
+        default="/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data",
+        help="Base path of images, Default:/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data",
     )
     Parser.add_argument(
         "--CheckPointPath",
@@ -256,7 +270,7 @@ def main():
     Parser.add_argument(
         "--MiniBatchSize",
         type=int,
-        default=1,
+        default=100,
         help="Size of the MiniBatch to use, Default:1",
     )
     Parser.add_argument(
@@ -299,7 +313,7 @@ def main():
 
     # Pretty print stats
     PrettyPrint(NumEpochs, DivTrain, MiniBatchSize, NumTrainSamples, LatestFile)
-
+    torch.cuda.empty_cache()
     TrainOperation(
         DirNamesTrain,
         TrainCoordinates,
@@ -314,6 +328,7 @@ def main():
         BasePath,
         LogsPath,
         ModelType,
+        NumClasses
     )
 
 
