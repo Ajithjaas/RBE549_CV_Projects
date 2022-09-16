@@ -14,9 +14,7 @@ Worcester Polytechnic Institute
 
 # Code starts here:
 
-from email.headerregistry import ContentTransferEncodingHeader
-from socketserver import ThreadingMixIn
-from ssl import SSLSocket
+
 import numpy as np
 import cv2
 import argparse
@@ -24,6 +22,9 @@ import matplotlib.pyplot as plt
 from skimage import feature 
 from scipy.spatial import distance
 import random 
+import imutils 
+import glob 
+import itertools 
 # Add any python libraries here
 class MyPano:
 	def __init__(self) -> None:
@@ -172,10 +173,17 @@ class MyPano:
 				inliers_best =inliers
 				H_best = H
 				inlier_inds = np.where(SSDs== 1)
+		# (H_best, status) = cv2.findHomography(Pi[inlier_inds],Pi_dash[inlier_inds], cv2.RANSAC, 4)
 		return Pi[inlier_inds],Pi_dash[inlier_inds],matches[inlier_inds],H_best
 
-	def Blending(self,Image1,Image2,filtered_matches,H):
-		pass
+	def Blending(self,Image1,Image2,Image_stitcher):  #,filtered_matches,H):
+		Images = []
+		Images.append(Image1)
+		Images.append(Image2)
+		err,stitched_image = Image_stitcher.stitch(Images)
+		return err,stitched_image
+
+		# pass
 		
 def main():
 	# Add any Command Line arguments here
@@ -185,62 +193,49 @@ def main():
 	NumFeatures = Args.NumFeatures
 	panorama = MyPano()
 
-	basePath = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p1/Phase1/Data/Train/Set1/" #1.jpg"
-	Image1_path = basePath +"1.jpg"
-	Image2_path = basePath +"2.jpg"
-	Image3_path = basePath +"3.jpg"
-
+	Path = glob.glob("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p1/Phase1/Data/Train/Set1/*.jpg")
+	
     # """
     # Read a set of images for Panorama stitching
     # """
-	Image1 = cv2.imread(Image1_path)
-	Image2 = cv2.imread(Image2_path)
-	Image3 = cv2.imread(Image3_path)
-	panorama.plot_image(Image1,"input1")
-	panorama.plot_image(Image2,"input2")
-	panorama.plot_image(Image3,"input3")
+	Images = []
+	i=0
+	for image in Path:
+		img = cv2.imread(image)
+		Images.append(img)
+		panorama.plot_image(img,"input_"+str(i))
+		i+=1
+	# Image1 ,Image2 , Image3 = Images 
 
     # """
 	# Corner Detection
 	# Save Corner detection output as corners.png
 	# """
-	
-	corner_score_image1,dst1 = panorama.corner_detection(Image1,2,3)
-	corner_score_image2,dst2 = panorama.corner_detection(Image2,2,3)
-	corner_score_image3,dst3 = panorama.corner_detection(Image3,2,3)
-	panorama.plot_image(corner_score_image1,"corners")
-	cv2.imwrite('corners1.png',corner_score_image1)
-	cv2.imwrite('corners2.png',corner_score_image2)
-	cv2.imwrite('corners3.png',corner_score_image3)
+	corner_score_images = []
+	dst = []
+	for i,img in enumerate(Images):
+		Image = img.copy()
+		cor_img,d = panorama.corner_detection(Image,2,3)
+		corner_score_images.append(cor_img)
+		dst.append(d)
+		panorama.plot_image(cor_img,"corners"+str(i+1))
+		cv2.imwrite(f'corners{i+1}.png',cor_img)
 
     # """
 	# Perform ANMS: Adaptive Non-Maximal Suppression
 	# Save ANMS output as anms.png
 	# """
-	anms1 = panorama.ANMS(dst1,200)
-	anms2 = panorama.ANMS(dst2,200)
-	anms3 = panorama.ANMS(dst3,200)
-	img1 = Image1.copy()
-	img2 = Image2.copy()
-	img3 = Image3.copy()
-
-	for coordinate in anms1:
-		i,j= int(coordinate[1]),int(coordinate[0])
-		cv2.circle(img1,(i,j),2,(0,0,255), -1)
-	panorama.plot_image(img1,"anms1")
-	cv2.imwrite('anms1.png',img1)
-
-	for coordinate in anms2:
-		i,j= int(coordinate[1]),int(coordinate[0])
-		cv2.circle(img2,(i,j),2,(0,0,255), -1)
-	panorama.plot_image(img2,"anms2")
-	cv2.imwrite('anms2.png',img2)
-
-	for coordinate in anms3:
-		i,j= int(coordinate[1]),int(coordinate[0])
-		cv2.circle(img3,(i,j),2,(0,0,255), -1)
-	panorama.plot_image(img3,"anms3")
-	cv2.imwrite('anms3.png',img3)
+	# dst1,dst2,dst3 = dst 
+	ANMS = []
+	for id,d in enumerate(dst):
+		img = Images[id].copy()
+		anms = panorama.ANMS(d,200)
+		ANMS.append(anms)
+		for coordinate in anms:
+			i,j= int(coordinate[1]),int(coordinate[0])
+			cv2.circle(img,(i,j),2,(0,0,255), -1)
+		panorama.plot_image(img,"anms"+str(id+1))
+		cv2.imwrite(f'anms{id+1}.png',img)
 	
     # """
 	# Feature Descriptors
@@ -251,46 +246,47 @@ def main():
 	# Feature Matching
 	# Save Feature Matching output as matching.png
 	# """
-
-	k1,k2,matches12 = panorama.featureMatching(Image1,anms1,Image2,anms2,1)
-	#Drawing matches  . cv2.Drawmatches did not work , hence writing my own match plotting
-	match_image = panorama.draw_matches(Image1,Image2,matches12)
-	panorama.plot_image(match_image,"Matches12")
-
-	cv2.imwrite('matching12.png',match_image)
-	k1,k2,matches23 = panorama.featureMatching(Image2,anms2,Image3,anms3,1)
-	match_image = panorama.draw_matches(Image2,Image3,matches23)
-	panorama.plot_image(match_image,"Matches23")
-	cv2.imwrite('matching23.png',match_image)
-
-	k1,k2,matches31 = panorama.featureMatching(Image3,anms3,Image1,anms1,1)
-	match_image = panorama.draw_matches(Image3,Image1,matches31)
-	panorama.plot_image(match_image,"Matches31")
-	cv2.imwrite('matching31.png',match_image)
+	ids = list(itertools.combinations(range(len(Images)), 2))
+	Matches ={}
+	for i,j in ids:
+		img1 =Images[i].copy()
+		img2 = Images[j].copy()
+		k1,k2,matches = panorama.featureMatching(img1,ANMS[i],img2,ANMS[j],1)
+		Matches[f"{i}{j}"]= matches
+		match_image = panorama.draw_matches(img1,img2,matches)
+		panorama.plot_image(match_image,f"Matches{i+1}{j+1}")
+	
     # """
 	# Refine: RANSAC, Estimate Homography
 	# """
-	k1,k2,filtered_matches12,H_best = panorama.RANSAC(matches12,100)
-	inliers_image12 = panorama.draw_matches(Image1,Image2,filtered_matches12)
-	panorama.plot_image(inliers_image12,"RANSAC12")
-	cv2.imwrite('inliers12.png',inliers_image12)
+	# print(Matches)
+	for i,j in ids:
+		img1 =Images[i].copy()
+		img2 = Images[j].copy()
+		match =Matches[f"{i}{j}"]
+		k1,k2,filtered_matches,H_best = panorama.RANSAC(match,100)
+		inliers_image = panorama.draw_matches(img1,img2,filtered_matches)
+		panorama.plot_image(inliers_image,f"RANSAC{i+1}{j+1}")
+		cv2.imwrite(f'inliers{i+1}{j+1}.png',inliers_image)
 
-	k1,k2,filtered_matches23,H_best = panorama.RANSAC(matches23,100)
-	inliers_image23 = panorama.draw_matches(Image2,Image3,filtered_matches23)
-	panorama.plot_image(inliers_image23,"RANSAC23")
-	cv2.imwrite('inliers23.png',inliers_image23)
-
-	k1,k2,filtered_matches31,H_best = panorama.RANSAC(matches31,100)
-	inliers_image31 = panorama.draw_matches(Image3,Image1,filtered_matches31)
-	panorama.plot_image(inliers_image31,"RANSAC31")
-	cv2.imwrite('inliers31.png',inliers_image31)
-
-    # """
+    # 
 	# Image Warping + Blending
 	# Save Panorama output as mypano.png
-	# """
-	image_stitched = panorama.Blending(Image1,Image2,filtered_matches12,H_best)
-	# panorama.plot_image(image_stitched,"stitch")
-	
+	# 
+
+	Image_stitcher = cv2.Stitcher_create()
+
+	# for i,j in ids:
+	# 	img1 = Images[i].copy()
+	# 	img2 = Images[j].copy()
+	# 	err,image_stitched = panorama.Blending(img1,img2,Image_stitcher)
+	# 	if not err:
+	# 		panorama.plot_image(image_stitched,f"stitch{i+1}{j+1}")
+	# 		cv2.imwrite(f'stitch{i+1}{j+1}.png',image_stitched)
+
+	err,stitched_image = Image_stitcher.stitch(Images)
+	panorama.plot_image(stitched_image,f"mypano")
+	cv2.imwrite('mypano.png',stitched_image)
+
 if __name__ == "__main__":
     main()
