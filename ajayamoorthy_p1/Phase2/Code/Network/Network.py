@@ -103,6 +103,8 @@ class SupNet(nn.Module):
         self.fc3= nn.Sequential(
             nn.Linear(2048, OutputSize))
 
+
+
     def forward(self, xb):
         """
         Input:
@@ -132,43 +134,6 @@ class SupNet(nn.Module):
 def UnSupLossFn(patch_b, patch_b_pred):
     loss = np.sum(abs(patch_b-patch_b_pred))
     return loss
-
-def DLT(H4pt_pred,corners):
-
-    H4pt = np.stack(torch.tensor(np.array([1,2,1,2,1,2,1,2]).reshape(-1,8),dtype=torch.float32),
-                    torch.tensor(np.ones((1,8))*2,dtype=torch.float32),
-                    torch.tensor(np.ones((1,8))*3,dtype=torch.float32)
-    )
-    H_final = np.empty((3,3,3))
-    for i in range(H4pt.shape[0]):
-        label = np.array(H4pt[i].reshape(-1,2))
-        pred_label = np.array(H4pt_pred[i].reshape(-1,2)) 
-        M = np.zeros((8,8))
-        N = np.zeros((8,1))
-        j=0
-        for real_corner, pred_corner in zip(label,pred_label):
-            ru,rv    = real_corner
-            pu,pv    = pred_corner
-            M[j,:]   = np.array([0,0,0,-ru,-rv,-1,pu*ru,pv*rv])
-            M[j+1,:] = np.array([ru,rv,1,0,0,0,-pu*ru,-pv*rv])
-            N[j]     = pv
-            N[j+1]   = pu 
-            j+=2
-        H = np.reshape(np.append(np.linalg.solve(M,N),[1]),(3,3))
-        H_final[i] = H 
-    return H_final
-
-
-        
-
-
-
-
-
-
-
-
-
 
 class UnSupHomographyModel(pl.LightningModule):
     def __init__(self, InputSize, OutputSize):
