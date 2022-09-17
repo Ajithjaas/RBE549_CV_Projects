@@ -26,9 +26,9 @@ import matplotlib.pyplot as plt
 
 def patch_generator(img,PatchSize,rho):
     x_min = rho                             # min left-top x-coordinate for patch considering the -rho pertubation  
-    x_max = img.shape[1]-PatchSize-rho      # max left-top x-coordinate for patch considering the patch size as well as +rho pertubation
+    x_max = img.shape[1]-PatchSize-rho-1    # max left-top x-coordinate for patch considering the patch size as well as +rho pertubation
     y_min = rho                             # min left-top y-coordinate for patch considering the -rho pertubation 
-    y_max = img.shape[0]-PatchSize-rho      # max left-top y-coordinate for patch considering the patch size as well as +rho pertubation
+    y_max = img.shape[0]-PatchSize-rho-1    # max left-top y-coordinate for patch considering the patch size as well as +rho pertubation
 
     x_patchA = np.random.randint(x_min,x_max) # Considering a random left-top x-coordinate for Patch-A within limits - (x_min,x_max)
     y_patchA = np.random.randint(y_min,y_max) # Considering a random left-top y-coordinate for Patch-A within limits - (y_min,y_max)
@@ -57,35 +57,40 @@ def patch_generator(img,PatchSize,rho):
     PatchA  =        img[y_patchA:(y_patchA+PatchSize),x_patchA:(x_patchA+PatchSize)]
     PatchB  = img_warped[y_patchA:(y_patchA+PatchSize),x_patchA:(x_patchA+PatchSize)]
     H4pt    = PatchB_corners - PatchA_corners
-    return PatchA, PatchB, H4pt
+    return PatchA_corners, PatchB_corners, PatchA, PatchB, H4pt
 
-def patch_creator(path, data_path,labels_path,NumFeatures):
+def patch_creator(data_type, path, zip_path, data_path, labels_path, NumFeatures):
+    if data_type == 'Train':
+        n = 5001
+    else:
+        n = 1001
+
     if not os.path.exists(path):
         # Create a new directory because it does not exist 
         os.makedirs(path)
         print("The new directory is created!")
 
     #train_img = []
-    for i in range(1,5001):
-        with zipfile.ZipFile('/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Train.zip', 'r') as zfile:
-            data = zfile.read('Train/'+str(i)+'.jpg')
+    for i in range(1,n):
+        with zipfile.ZipFile(zip_path, 'r') as zfile:
+            data = zfile.read(data_type+'/'+str(i)+'.jpg')
         img = cv2.imdecode(np.frombuffer(data, np.uint8), 1)
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         cv2.imwrite(path+str(i)+'.jpg', img_gray)
         # train_img.append(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))  
 
-    
+
     if not os.path.exists(data_path):
         # Create a new directory because it does not exist 
         os.makedirs(data_path)
         print("The new directory is created!")
 
-    
+
     TrainLabels = open(labels_path, "w")
-    for i in range(1,5001):
-        rho = 16  # In pixels
+    for i in range(1,n):
+        rho = 8  # In pixels
         patch_size = int(NumFeatures) # Dimension of the patch (The final patch dimensions = patch_size x patch_size)
-        PatchA, PatchB, H4Pt = patch_generator(cv2.imread(path+str(i)+'.jpg',cv2.IMREAD_GRAYSCALE),patch_size,rho)
+        _, _, PatchA, PatchB, H4Pt = patch_generator(cv2.imread(path+str(i)+'.jpg',cv2.IMREAD_GRAYSCALE),patch_size,rho)
         training_imgs = np.dstack((PatchA,PatchB))
         # print(PatchA.shape)
         # print(PatchB.shape)
@@ -115,28 +120,27 @@ def patch_creator(path, data_path,labels_path,NumFeatures):
 def main():
     # Add any Command Line arguments here
     Parser = argparse.ArgumentParser()
-    Parser.add_argument('--NumFeatures', default=100, help='Number of best features to extract from each image, Default:100')
+    Parser.add_argument('--NumFeatures', default=64, help='Number of best features to extract from each image, Default:100')
+    Parser.add_argument('--Data', default='Train', help='The data that need to be prepared \'Train\' or \'Test\', Default:\'Train\'')
     Args = Parser.parse_args()
     NumFeatures = Args.NumFeatures
+    data_type = Args.Data
 
     """
     Read a set of images for Panorama stitching
     """
-    path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Train_Images/'
-    data_path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Train/'
-    labels_path = "/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Code/TxtFiles/LabelsTrain.txt"
-    
-    patch_creator(path, data_path,labels_path,NumFeatures)
+    if data_type=='Train':
+        path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Train_Images/'
+        data_path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Train/'
+        trainzip_path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Train.zip'
+        labels_path = "/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Code/TxtFiles/LabelsTrain.txt"
+        patch_creator('Train', path, trainzip_path, data_path, labels_path, NumFeatures)
+    else:
+        path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Test_Images/'
+        data_path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/Test/'
+        testzip_path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/P1TestSet.zip'
+        labels_path = "/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Code/TxtFiles/LabelsTest.txt"
+        patch_creator('P1TestSet/Phase2', path, testzip_path, data_path, labels_path, NumFeatures)
  
-    """
-	Obtain Homography using Deep Learning Model (Supervised and Unsupervised)
-	"""
-
-    """
-	Image Warping + Blending
-	Save Panorama output as mypano.png
-	"""
-
-
 if __name__ == "__main__":
     main()

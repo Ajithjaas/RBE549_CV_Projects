@@ -58,6 +58,11 @@ class HomographyModel(pl.LightningModule):
         logs = {"val_loss": avg_loss}
         return {"avg_val_loss": avg_loss, "log": logs}
 
+    def test_step(self, batch):
+        patch, corners = batch
+        delta = self.model(patch)
+        return delta
+
 
 class Net(nn.Module):
     def __init__(self, InputSize, OutputSize):
@@ -74,26 +79,35 @@ class Net(nn.Module):
         self.layer1 = nn.Sequential(
             nn.Conv2d(2, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.Dropout(p=0.9))
         self.layer2 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(), 
-            nn.MaxPool2d(kernel_size = 2, stride = 2))
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Dropout(p=0.9))
         self.layer3 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(128),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.Dropout(p=0.9))
         self.layer4 = nn.Sequential(
             nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size = 2, stride = 2))
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Dropout(p=0.9))
         self.fc1 = nn.Sequential(
             nn.Linear(int(InputSize[0]/4)*int(InputSize[1]/4)*128, 4096),
-            nn.ReLU()) 
-        self.fc2= nn.Sequential(
-            nn.Linear(4096, OutputSize))
+            nn.ReLU(),
+            nn.Dropout(p=0.6)) 
+        self.fc2 = nn.Sequential(
+            nn.Linear(4096, 2048),
+            nn.ReLU(),
+            nn.Dropout(p=0.6)) 
+        self.fc3= nn.Sequential(
+            nn.Linear(2048, OutputSize))
 
     def forward(self, xb):
         """
@@ -113,4 +127,5 @@ class Net(nn.Module):
         out = torch.flatten(out, 1)
         out = self.fc1(out)
         out = self.fc2(out)
+        out = self.fc3(out)
         return out

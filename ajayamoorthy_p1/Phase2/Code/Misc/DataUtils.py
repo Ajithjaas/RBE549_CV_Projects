@@ -24,7 +24,7 @@ import re
 sys.dont_write_bytecode = True
 
 
-def SetupAll(BasePath, CheckPointPath):
+def SetupAll(BasePath, CheckPointPath,NumFeatures):
     """
     Inputs:
     BasePath is the base path where Images are saved without "/" at the end
@@ -55,7 +55,7 @@ def SetupAll(BasePath, CheckPointPath):
     NumTestRunsPerEpoch = 5
 
     # Image Input Shape
-    ImageSize = [64, 64, 2]
+    ImageSize = [NumFeatures, NumFeatures, 2]
     NumTrainSamples = len(DirNamesTrain)
 
     # Number of classes

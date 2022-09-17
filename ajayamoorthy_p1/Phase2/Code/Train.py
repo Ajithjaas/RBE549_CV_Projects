@@ -152,7 +152,8 @@ def TrainOperation(
     ###############################################
     # Fill your optimizer of choice here!
     ###############################################
-    Optimizer = torch.optim.SGD(model.parameters(),lr = 0.001)
+    # Optimizer = torch.optim.SGD(model.parameters(),lr = 0.0002)
+    Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.00001)
 
     # Tensorboard
     # Create a summary to monitor loss tensor
@@ -184,29 +185,29 @@ def TrainOperation(
             Optimizer.step()
             # Optimizer.step(1)
 
-            # Save checkpoint every some SaveCheckPoint's iterations
-            if PerEpochCounter % SaveCheckPoint == 0:
-                # Save the Model learnt in this epoch
-                SaveName = (
-                    CheckPointPath
-                    + str(Epochs)
-                    + "a"
-                    + str(PerEpochCounter)
-                    + "model.ckpt"
-                )
+            # # Save checkpoint every some SaveCheckPoint's iterations
+            # if PerEpochCounter % SaveCheckPoint == 0:
+            #     # Save the Model learnt in this epoch
+            #     SaveName = (
+            #         CheckPointPath
+            #         + str(Epochs)
+            #         + "a"
+            #         + str(PerEpochCounter)
+            #         + "model.ckpt"
+            #     )
 
-                torch.save(
-                    {
-                        "epoch": Epochs,
-                        "model_state_dict": model.state_dict(),
-                        "optimizer_state_dict": Optimizer.state_dict(),
-                        "loss": LossThisBatch,
-                    },
-                    SaveName,
-                )
-                print("\n" + SaveName + " Model Saved...")
+            #     torch.save(
+            #         {
+            #             "epoch": Epochs,
+            #             "model_state_dict": model.state_dict(),
+            #             "optimizer_state_dict": Optimizer.state_dict(),
+            #             "loss": LossThisBatch,
+            #         },
+            #         SaveName,
+            #     )
+            #     print("\n" + SaveName + " Model Saved...")
 
-            result = model.validation_step(I1Batch)
+            result = model.validation_step(I1Batch)           
             # Tensorboard
             Writer.add_scalar(
                 "LossEveryIter",
@@ -228,6 +229,7 @@ def TrainOperation(
             SaveName,
         )
         print("\n" + SaveName + " Model Saved...")
+        print("Validation Loss: ",result["val_loss"].item())
 
 
 def main():
@@ -258,7 +260,7 @@ def main():
     Parser.add_argument(
         "--NumEpochs",
         type=int,
-        default=50,
+        default=10,
         help="Number of Epochs to Train for, Default:50",
     )
     Parser.add_argument(
@@ -270,7 +272,7 @@ def main():
     Parser.add_argument(
         "--MiniBatchSize",
         type=int,
-        default=100,
+        default=64,
         help="Size of the MiniBatch to use, Default:1",
     )
     Parser.add_argument(
@@ -284,6 +286,12 @@ def main():
         default="Logs/",
         help="Path to save Logs for Tensorboard, Default=Logs/",
     )
+    Parser.add_argument(
+        "--NumFeatures",
+        type=int,
+        default=64,
+        help="Path to save Logs for Tensorboard, Default=64",
+    )
 
     Args = Parser.parse_args()
     NumEpochs = Args.NumEpochs
@@ -294,6 +302,7 @@ def main():
     CheckPointPath = Args.CheckPointPath
     LogsPath = Args.LogsPath
     ModelType = Args.ModelType
+    NumFeatures = Args.NumFeatures
 
     # Setup all needed parameters including file reading
     (
@@ -303,7 +312,7 @@ def main():
         NumTrainSamples,
         TrainCoordinates,
         NumClasses,
-    ) = SetupAll(BasePath, CheckPointPath)
+    ) = SetupAll(BasePath, CheckPointPath,NumFeatures)
 
     # Find Latest Checkpoint File
     if LoadCheckPoint == 1:
