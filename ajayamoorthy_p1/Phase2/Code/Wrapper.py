@@ -117,10 +117,12 @@ def patchGenerator(ZipFileString, NumFeatures, originalImgPath, patchImgPath, Zi
     patch_size  = NumFeatures           # Dimension of the patch (The final patch dimensions = patch_size x patch_size)
 
     for i in range(1,numberOfFiles+1):
-        _, _, _, PatchA, PatchB, H4Pt = patch_creator(cv2.imread(originalImgPath+str(i)+'.jpg',cv2.IMREAD_GRAYSCALE), patch_size, rho) # Generating Patches
+        _, PatchA_corners, PatchB_corners, PatchA, PatchB, H4Pt = patch_creator(cv2.imread(originalImgPath+str(i)+'.jpg',cv2.IMREAD_GRAYSCALE), patch_size, rho) # Generating Patches
         
-        training_patch = np.dstack((PatchA,PatchB))         # Stacking Patch-A and Patch-B together to create one sample of data
+        training_patch          = np.dstack((PatchA,PatchB)) # Stacking Patch-A and Patch-B together to create one sample of data
+        training_patch_corners  = np.dstack((PatchA_corners,PatchB_corners)) # Stacking the Patch-A and Patch-B corners together
         np.save(patchImgPath+str(i)+'.npy',training_patch)  # Saving the stacked patches as numpy array to be used for training
+        np.save(patchImgPath+str(i)+'_corners.npy',training_patch_corners)
 
         # Storing the respective labels (i.e. H4Pt) values in a textfile to be used for training
         string_name = str(i)+","

@@ -2,4 +2,9 @@
 ajayamoorthy_p1/Phase2/Checkpoints
 ajayamoorthy_p1/Phase2/Code/Logs
 ajayamoorthy_p1/Phase2/Data/Train
-ajayamoorthy_p1/Phase2/Data/Train_Images
+ajayamoorthy_p1/Phase2/Data/TrainOrgsImgs
+ajayamoorthy_p1/Phase2/Data/Val
+ajayamoorthy_p1/Phase2/Data/ValOrgImgs
+ajayamoorthy_p1/Phase2/Data/Test
+ajayamoorthy_p1/Phase2/Data/TestOrgImgs
+ajayamoorthy_p1/Phase2/Data/TrainSamples

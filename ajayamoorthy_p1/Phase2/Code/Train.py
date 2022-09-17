@@ -18,6 +18,7 @@ Worcester Polytechnic Institute
 # skimage, do (apt install python-skimage)
 # termcolor, do (pip install termcolor)
 
+from ctypes.wintypes import HACCEL
 import torch
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
@@ -98,7 +99,7 @@ def SupGenerateBatch(PerEpochCounter, BasePath, DirNamesTrain, TrainCoordinates,
 
 
 ###  GENERATION OF BATCH SUPERVISED
-def UnSupGenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize):
+def UnSupGenerateBatch(PerEpochCounter, BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize):
     """
     Inputs:
     BasePath            - Path to COCO folder without "/" at the end
@@ -114,27 +115,26 @@ def UnSupGenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, Min
     CoordinatesBatch    - Batch of coordinates
     """
     I1Batch = []
+    CornersBatch = []
     CoordinatesBatch = []
-
+    BatchDirNamesTrain = DirNamesTrain[PerEpochCounter*MiniBatchSize: PerEpochCounter*MiniBatchSize + MiniBatchSize]
     ImageNum = 0
     while ImageNum < MiniBatchSize:
         # Generate random image
-        RandIdx = random.randint(0, len(DirNamesTrain) - 1)
-
-        RandImageName = BasePath + os.sep + DirNamesTrain[RandIdx] + ".jpg"
+        RandImageName   = BasePath + os.sep + BatchDirNamesTrain[ImageNum][0] + ".npy"
+        PatchCornName   = BasePath + os.sep + BatchDirNamesTrain[ImageNum][0] + "_corners.npy"
+        patch           = np.float32(np.load(RandImageName))
+        patch_corner    = np.float32(np.load(PatchCornName))
+        To_Tensor       = ToTensor()
+        I1              = To_Tensor(patch)
+        Coordinates     = TrainCoordinates[BatchDirNamesTrain[ImageNum][1]]
+        # Append All Images and Mask
+        I1Batch.append(I1)
+        CornersBatch.append(patch_corner)
+        CoordinatesBatch.append(torch.tensor(Coordinates, dtype=torch.float32))
         ImageNum += 1
 
-        ##########################################################
-        # Add any standardization or data augmentation here!
-        ##########################################################
-        I1 = np.float32(cv2.imread(RandImageName))
-        Coordinates = TrainCoordinates[RandIdx]
-
-        # Append All Images and Mask
-        I1Batch.append(torch.from_numpy(I1))
-        CoordinatesBatch.append(torch.tensor(Coordinates))
-
-    return torch.stack(I1Batch), torch.stack(CoordinatesBatch)
+    return torch.stack(I1Batch).to(device), torch.stack(CoordinatesBatch).to(device), CornersBatch
 
 
 #### PRINTING THE TRAINING PARAMETERS
@@ -198,8 +198,8 @@ def TrainOperation(
     ###############################################
     # Fill your optimizer of choice here!
     ###############################################
-    Optimizer = torch.optim.SGD(model.parameters(),lr = 0.00001)
-    # Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.00001)
+    # Optimizer = torch.optim.SGD(model.parameters(),lr = 0.00001)
+    Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.000001)
 
     # Tensorboard
     # Create a summary to monitor loss tensor
@@ -227,15 +227,15 @@ def TrainOperation(
             if ModelType == 'Sup':
                 I1Batch = SupGenerateBatch(PerEpochCounter, BasePath, DirNamesTrain_, TrainCoordinates, ImageSize, MiniBatchSize)
             else:
-                I1Batch, CoordinatesBatch = UnSupGenerateBatch(
-                    BasePath, DirNamesTrain_, TrainCoordinates, ImageSize, MiniBatchSize
-                    ) 
+                I1Batch = UnSupGenerateBatch(PerEpochCounter, BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize)
 
             # Predict output with forward pass
             if ModelType == 'Sup':
                 LossThisBatch = model.training_step(I1Batch)
             else:
-                PredicatedCoordinatesBatch = model(I1Batch)
+                LossThisBatch = model.training_step(I1Batch)
+                # delta_arr     = LossThisBatch["delta_arr"]
+                # H_AB          = model.DLT(delta_arr,ConerBatch)
                 LossThisBatch = UnSupLossFn(PredicatedCoordinatesBatch, CoordinatesBatch)
 
             Optimizer.zero_grad()
@@ -318,7 +318,7 @@ def main():
     Parser.add_argument(
         "--NumEpochs",
         type=int,
-        default=5,
+        default=10,
         help="Number of Epochs to Train for, Default:50",
     )
     Parser.add_argument(
