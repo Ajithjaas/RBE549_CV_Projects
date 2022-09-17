@@ -11,7 +11,6 @@ University of Maryland, College Park
 """
 
 import os
-from pickletools import float8
 import cv2
 import numpy as np
 import random
@@ -24,7 +23,7 @@ import re
 sys.dont_write_bytecode = True
 
 
-def SetupAll(BasePath, CheckPointPath,NumFeatures):
+def SetupAll(BasePath, CheckPointPath, NumFeatures):
     """
     Inputs:
     BasePath is the base path where Images are saved without "/" at the end
@@ -51,6 +50,7 @@ def SetupAll(BasePath, CheckPointPath,NumFeatures):
 
     # Save checkpoint every SaveCheckPoint iteration in every epoch, checkpoint saved automatically after every epoch
     SaveCheckPoint = 100
+
     # Number of passes of Val data with MiniBatchSize
     NumTestRunsPerEpoch = 5
 
@@ -78,8 +78,6 @@ def ReadLabels(LabelsPathTrain):
     else:
         TrainLabels = open(LabelsPathTrain, "r")
         TrainLabels = TrainLabels.read()
-        # TrainLabels = list(map(float, TrainLabels.split()))
-        # print(TrainLabels)
         TrainLabels = np.array(re.split(",|\n",TrainLabels)[:-1],dtype=int)
         TrainLabels = TrainLabels.reshape(-1,9)
         TrainLabels = dict(zip(TrainLabels[:,0],TrainLabels[:,1:]))

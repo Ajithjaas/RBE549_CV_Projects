@@ -16,45 +16,49 @@ Worcester Polytechnic Institute
 # opencv, do (pip install opencv-python)
 # skimage, do (apt install python-skimage)
 
-import cv2
-import os
-import sys
-import glob
-import random
-from skimage import data, exposure, img_as_float
-import matplotlib.pyplot as plt
-from matplotlib import patches as pat
-import numpy as np
-import time
-from torchvision.transforms import ToTensor
 import argparse
-from Network.Network import HomographyModel
+import glob
+import math as m
+import os
+import random
 import shutil
 import string
-import math as m
-from sklearn.metrics import confusion_matrix
-from tqdm import tqdm
+import sys
+import time
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import re
-import zipfile
-from Wrapper import *
+from Wrapper import * 
+from skimage import data, exposure, img_as_float
+from sklearn.metrics import confusion_matrix
+from torchvision.transforms import ToTensor
+from tqdm import tqdm
+from Network.Network import SupHomographyModel, UnSupHomographyModel
+from Train import SupGenerateBatch
 
 if torch.cuda.is_available():
   device = torch.device("cuda")
+  torch.cuda.empty_cache()
 else:
   device = torch.device("cpu")
-print(torch.cuda.get_device_name())
-
 
 # Don't generate pyc codes
 sys.dont_write_bytecode = True
 
-def StandardizeInputs(Img):
-    ##########################################################################
-    # Add any standardization or cropping/resizing if used in Training here!
-    ##########################################################################
-    return Img
-    
+
+########################################################
+######            SETUPALL FUNCTION              #######
+########################################################
+def ReadDirNames(ReadPath):
+    # Read text files
+    DirNames = open(ReadPath, "r")
+    DirNames = DirNames.read()
+    DirNames = DirNames.split()
+    return DirNames
+
 def ReadLabels(LabelsPath):
     if not (os.path.isfile(LabelsPath)):
         print("ERROR: Test Labels do not exist in " + LabelsPath)
@@ -67,70 +71,33 @@ def ReadLabels(LabelsPath):
         TestLabels = dict(zip(TestLabels[:,0],TestLabels[:,1:]))
     return TestLabels
 
-def ReadDirNames(ReadPath):
-    # Read text files
-    DirNames = open(ReadPath, "r")
-    DirNames = DirNames.read()
-    DirNames = DirNames.split()
-    return DirNames
-
 def SetupAll(LabelsPath, NumFeature, PathDirNamesTest):
     # Setup DirNames
-    DirNamesTest = ReadDirNames(PathDirNamesTest)
-
-    TestLabels = ReadLabels(LabelsPath)
+    DirNamesTest    = ReadDirNames(PathDirNamesTest)
+    TestLabels      = ReadLabels(LabelsPath)
     # Image Input Shape
-    ImageSize = [NumFeature, NumFeature, 2]
-    NumTestSamples = len(DirNamesTest)
-
+    ImageSize       = [NumFeature, NumFeature, 2]
+    NumTestSamples  = len(DirNamesTest)
     # Number of classes
-    NumClasses = 8
-    return TestLabels, DirNamesTest, ImageSize, NumTestSamples
+    NumClasses      = 8
+    return TestLabels, DirNamesTest, ImageSize, NumTestSamples, NumClasses
 
-def GenerateBatch(idx, BasePath, DirNamesTest, TestCoordinates, ImageSize, MiniBatchSize):
-    """
-    Inputs:
-    BasePath - Path to COCO folder without "/" at the end
-    DirNamesTrain - Variable with Subfolder paths to train files
-    NOTE that Train can be replaced by Val/Test for generating batch corresponding to validation (held-out testing in this case)/testing
-    TrainCoordinates - Coordinatess corresponding to Train
-    NOTE that TrainCoordinates can be replaced by Val/TestCoordinatess for generating batch corresponding to validation (held-out testing in this case)/testing
-    ImageSize - Size of the Image
-    MiniBatchSize is the size of the MiniBatch
-    Outputs:
-    I1Batch - Batch of images
-    CoordinatesBatch - Batch of coordinates
-    """
-    I1Batch = []
-    CoordinatesBatch = []
 
-    for i in range(idx*MiniBatchSize, idx*MiniBatchSize + MiniBatchSize):
-        # Generate random image
-        ImageName = BasePath + os.sep + DirNamesTest[i] + ".npy"
-        patch = np.float32(np.load(ImageName))
-        To_Tensor = ToTensor()
-        I1 = To_Tensor(patch)
-        Coordinates = TestCoordinates[i+1]
-        I1Batch.append(I1)
-        CoordinatesBatch.append(torch.tensor(Coordinates,dtype=torch.float32))
-        
-    return torch.stack(I1Batch).to(device), torch.stack(CoordinatesBatch).to(device)
 
-def TestOperation(ImgSize, BasePath, DirNamesTest, TestLabels, ModelPath, LabelsPathPred, NumTestSamples):
+
+def TestOperation(ImgSize, BasePath, DirNamesTest, TestLabels, ModelPath, LabelsPathPred, NumTestSamples, NumClasses):
     """
     Inputs:
     NumFeatures is the side dimension of the Image.
-    ImageSize is the size of the image
-    ModelPath - Path to load trained model from
-    BasePath - The test dataset
-    TestLabels - Test Labels
-    LabelsPathPred - Path to save predictions
-    Outputs:
-    Predictions written to /content/data/TxtFiles/PredOut.txt
+    ImageSize       - size of the image
+    ModelPath       - Path to load trained model from
+    BasePath        - The test dataset
+    TestLabels      - Test Labels
+    LabelsPathPred  - Path to save predictions
     """
     # Predict output with forward pass, MiniBatchSize for Test is 1
-    model = HomographyModel(ImgSize, OutputSize=8)
-    CheckPoint = torch.load(ModelPath)
+    model       = SupHomographyModel(ImgSize, NumClasses)
+    CheckPoint  = torch.load(ModelPath)
     model.load_state_dict(CheckPoint["model_state_dict"])
     model.to(device)
     
@@ -138,22 +105,39 @@ def TestOperation(ImgSize, BasePath, DirNamesTest, TestLabels, ModelPath, Labels
         "Number of parameters in this model are %d " % len(model.state_dict().items())
     )
     
+    # Shuffiling the Order of the training images to avoid bias 
+    DirNamesTest_ = random.sample(list(zip(DirNamesTest, list(TestLabels))), len(DirNamesTest))
+    try:
+        PredLabels = open(LabelsPathPred, "x")
+    except:
+        PredLabels = open(LabelsPathPred, "w")
+    
     Output = []
     Minibatchsize = 100
     Iterations = int(NumTestSamples/Minibatchsize)
-    for idx in range(Iterations):
-        batch = GenerateBatch(idx, BasePath, DirNamesTest, TestLabels, ImgSize, Minibatchsize)
-        result = model.validation_step(batch)
+    for idx in tqdm(range(Iterations)):
+        batch   = SupGenerateBatch(idx, BasePath, DirNamesTest_, TestLabels, ImgSize, Minibatchsize)
+        result  = model.validation_step(batch)
+        delta   = model.test_step(batch)
+        delta   = delta.cpu().detach().numpy()
         Output.append(result["val_loss"].item())
+        # Storing the respective labels (i.e. H4Pt) values in a textfile to be used for training
+        BatchDirNamesTest = DirNamesTest_[idx*Minibatchsize: idx*Minibatchsize + Minibatchsize]
+        for i in range(delta.shape[0]):
+            string_name = BatchDirNamesTest[i][0] + ","
+            string_name = string_name + str(delta[i,:])+","
+            PredLabels.write(string_name+"\n")
+
     print("Average Test Loss = ", np.mean(np.array(Output)))
 
 
 def TestSample(BasePath, zip_path, path, LabelsPath, NumFeatures, PathDirNamesTest, ImgSize, ModelPath):
-    model = HomographyModel(ImgSize, OutputSize=8)
-    CheckPoint = torch.load(ModelPath)
+    model       = SupHomographyModel(ImgSize, OutputSize=8)
+    CheckPoint  = torch.load(ModelPath)
     model.load_state_dict(CheckPoint["model_state_dict"])
     model.to(device)
 
+  
     if not os.path.exists(path):
         # Create a new directory because it does not exist 
         os.makedirs(path)
@@ -167,15 +151,16 @@ def TestSample(BasePath, zip_path, path, LabelsPath, NumFeatures, PathDirNamesTe
 
     rho = 16  # In pixels
     patch_size = int(NumFeatures) # Dimension of the patch (The final patch dimensions = patch_size x patch_size)
+    TestLabels, DirNamesTest, ImgSize, NumTestSamples, NumClasses = SetupAll(LabelsPath, NumFeatures, PathDirNamesTest)
+    
+    DirNamesTest_ = random.sample(list(zip(DirNamesTest, list(TestLabels))), len(DirNamesTest))
 
     for i in range(1,5):
         img = cv2.imread(path+str(i)+'.jpg')
         img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
         img_gray = cv2.imread(path+str(i)+'.jpg',cv2.IMREAD_GRAYSCALE)
-        PatchA_corners, PatchB_corners,_,_,_ = patch_generator(img_gray,patch_size,rho)
-
-        TestLabels, DirNamesTest, ImageSize, NumTestSamples= SetupAll(LabelsPath, NumFeatures, PathDirNamesTest)
-        batch = GenerateBatch(0, BasePath, DirNamesTest, TestLabels, ImageSize, 1)
+        _,PatchA_corners, PatchB_corners,_,_,_ = patch_creator(img_gray,patch_size,rho)
+        batch   = SupGenerateBatch(i, BasePath, DirNamesTest_, TestLabels, ImgSize, 1)
         NN_H4PT = model.test_step(batch)
         NN_H4PT = NN_H4PT.cpu().detach().numpy().reshape(4,2)
         NN_Corners = PatchA_corners + NN_H4PT
@@ -196,8 +181,6 @@ def TestSample(BasePath, zip_path, path, LabelsPath, NumFeatures, PathDirNamesTe
         plt.plot(xC, yC, c='y')
         plt.show()
 
-
-        
 def main():
     """
     Inputs:
@@ -205,9 +188,26 @@ def main():
     Outputs:
     Prints out the confusion matrix with accuracy
     """
-
     # Parse Command Line arguments
     Parser = argparse.ArgumentParser()
+    Parser.add_argument(
+        "--ModelPath",
+        dest="ModelPath",
+        default="../Checkpoints/4model.ckpt",
+        help="Path to load latest model from, Default:ModelPath",
+    )
+    Parser.add_argument(
+        "--BasePath",
+        dest="BasePath",
+        default="../Data",
+        help="Path to load images from, Default:BasePath",
+    )
+    Parser.add_argument(
+        "--LabelsPath",
+        dest="LabelsPath",
+        default="./TxtFiles/LabelsTest.txt",
+        help="Path of labels file, Default:./TxtFiles/LabelsTest.txt",
+    )
     Parser.add_argument(
         "--NumFeatures",
         type = int,
@@ -215,19 +215,9 @@ def main():
         help="Dimension of the Patch, Default:100",
     )
     Parser.add_argument(
-        "--ModelPath",
-        default="../Checkpoints/9model.ckpt",
-        help="Path to load latest model from, Default:ModelPath",
-    )
-    Parser.add_argument(
-        "--BasePath",
-        default="/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data",
-        help="Path to load images from, Default:BasePath",
-    )
-    Parser.add_argument(
-        "--LabelsPath",
-        default="../Code/TxtFiles/LabelsTest.txt",
-        help="Path of labels file, Default:ajayamoorthy_p1/Phase2/Code/TxtFiles/LabelsTest.txt",
+        "--ModelType",
+        default='Sup',
+        help="Model type is either Supervised ('Sup') or Unsupervised ('Unsup'), Default:'Sup'",
     )
 
     Args = Parser.parse_args()
@@ -235,18 +225,18 @@ def main():
     BasePath    = Args.BasePath
     LabelsPath  = Args.LabelsPath
     NumFeatures = Args.NumFeatures
+    ModelType   = Args.ModelType
 
     PathDirNamesTest = "../Code/TxtFiles/DirNamesTest.txt"
-    TestLabels, DirNamesTest, ImgSize, NumTestSamples= SetupAll(LabelsPath, NumFeatures, PathDirNamesTest)
+    TestLabels, DirNamesTest, ImgSize, NumTestSamples, NumClasses = SetupAll(LabelsPath, NumFeatures, PathDirNamesTest)
 
     # Define PlaceHolder variables for Input and Predicted output
     LabelsPathPred = "../Code/TxtFiles/PredOut.txt"  # Path to save predicted labels
-    TestOperation(ImgSize, BasePath, DirNamesTest, TestLabels, ModelPath, LabelsPathPred, NumTestSamples)
+    TestOperation(ImgSize, BasePath, DirNamesTest, TestLabels, ModelPath, LabelsPathPred, NumTestSamples, NumClasses)
 
     zip_path = '/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data/P1TestSet.zip'
     path = '../Data/TrainSamples/'
     TestSample(BasePath, zip_path, path, LabelsPath, NumFeatures, PathDirNamesTest, ImgSize, ModelPath)
-
 
 if __name__ == "__main__":
     main()

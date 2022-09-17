@@ -18,14 +18,14 @@ Worcester Polytechnic Institute
 # skimage, do (apt install python-skimage)
 # termcolor, do (pip install termcolor)
 
-from unittest.mock import patch
 import torch
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
 from torch.optim import AdamW
-from Network.Network import HomographyModel
-# from Network import LossFn
+from Network.Network import UnSupHomographyModel
+from Network.Network import SupHomographyModel
+from Network.Network import UnSupLossFn
 import cv2
 import sys
 import os
@@ -50,7 +50,6 @@ from termcolor import colored, cprint
 import math as m
 from tqdm import tqdm
 
-
 if torch.cuda.is_available():
   device = torch.device("cuda")
   torch.cuda.empty_cache()
@@ -58,19 +57,61 @@ else:
   device = torch.device("cpu")
 print(torch.cuda.get_device_name())
 
-def GenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize):
+
+###  GENERATION OF BATCH SUPERVISED
+def SupGenerateBatch(PerEpochCounter, BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize):
     """
     Inputs:
-    BasePath - Path to COCO folder without "/" at the end
-    DirNamesTrain - Variable with Subfolder paths to train files
+    BasePath            - Path to COCO folder without "/" at the end
+    DirNamesTrain       - Variable with Subfolder paths to train files
     NOTE that Train can be replaced by Val/Test for generating batch corresponding to validation (held-out testing in this case)/testing
-    TrainCoordinates - Coordinatess corresponding to Train
+    TrainCoordinates    - Coordinatess corresponding to Train
     NOTE that TrainCoordinates can be replaced by Val/TestCoordinatess for generating batch corresponding to validation (held-out testing in this case)/testing
-    ImageSize - Size of the Image
-    MiniBatchSize is the size of the MiniBatch
+    ImageSize           - Size of the Image
+    MiniBatchSize       - Size of the MiniBatch
+
     Outputs:
-    I1Batch - Batch of images
-    CoordinatesBatch - Batch of coordinates
+    I1Batch             - Batch of images
+    CoordinatesBatch    - Batch of coordinates
+    """
+    I1Batch = []
+    CoordinatesBatch = []
+    BatchDirNamesTrain = DirNamesTrain[PerEpochCounter*MiniBatchSize: PerEpochCounter*MiniBatchSize + MiniBatchSize]
+ 
+    ImageNum = 0
+    # print("\n Img Location :", BatchDirNamesTrain[ImageNum][0])
+    # print("\n Cordinates   :", TrainCoordinates[BatchDirNamesTrain[ImageNum][1]])
+
+    while ImageNum < MiniBatchSize:
+        # Generate random image
+        RandImageName   = BasePath + os.sep + BatchDirNamesTrain[ImageNum][0] + ".npy"
+        patch           = np.float32(np.load(RandImageName))
+        To_Tensor       = ToTensor()
+        I1              = To_Tensor(patch)
+        Coordinates     = TrainCoordinates[BatchDirNamesTrain[ImageNum][1]]
+        # Append All Images and Mask
+        I1Batch.append(I1)
+        CoordinatesBatch.append(torch.tensor(Coordinates, dtype=torch.float32))
+        ImageNum += 1
+
+    return torch.stack(I1Batch).to(device), torch.stack(CoordinatesBatch).to(device)
+
+
+###  GENERATION OF BATCH SUPERVISED
+def UnSupGenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize):
+    """
+    Inputs:
+    BasePath            - Path to COCO folder without "/" at the end
+    DirNamesTrain       - Variable with Subfolder paths to train files
+    NOTE that Train can be replaced by Val/Test for generating batch corresponding to validation (held-out testing in this case)/testing
+    TrainCoordinates    - Coordinatess corresponding to Train
+    NOTE that TrainCoordinates can be replaced by Val/TestCoordinatess for generating batch corresponding to validation (held-out testing in this case)/testing
+    ImageSize           - Size of the Image
+    MiniBatchSize       - Size of the MiniBatch
+
+    Outputs:
+    I1Batch             - Batch of images
+    CoordinatesBatch    - Batch of coordinates
     """
     I1Batch = []
     CoordinatesBatch = []
@@ -80,24 +121,23 @@ def GenerateBatch(BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatc
         # Generate random image
         RandIdx = random.randint(0, len(DirNamesTrain) - 1)
 
-        RandImageName = BasePath + os.sep + DirNamesTrain[RandIdx] + ".npy"
+        RandImageName = BasePath + os.sep + DirNamesTrain[RandIdx] + ".jpg"
         ImageNum += 1
 
         ##########################################################
         # Add any standardization or data augmentation here!
         ##########################################################
-        patch = np.float32(np.load(RandImageName))
-        To_Tensor = ToTensor()
-        I1 = To_Tensor(patch)
-        Coordinates = TrainCoordinates[RandIdx+1]
-        # print(Coordinates)
+        I1 = np.float32(cv2.imread(RandImageName))
+        Coordinates = TrainCoordinates[RandIdx]
 
         # Append All Images and Mask
-        I1Batch.append(I1)
-        CoordinatesBatch.append(torch.tensor(Coordinates,dtype=torch.float32))
-    return torch.stack(I1Batch).to(device), torch.stack(CoordinatesBatch).to(device)
+        I1Batch.append(torch.from_numpy(I1))
+        CoordinatesBatch.append(torch.tensor(Coordinates))
+
+    return torch.stack(I1Batch), torch.stack(CoordinatesBatch)
 
 
+#### PRINTING THE TRAINING PARAMETERS
 def PrettyPrint(NumEpochs, DivTrain, MiniBatchSize, NumTrainSamples, LatestFile):
     """
     Prints all stats with all arguments
@@ -110,6 +150,7 @@ def PrettyPrint(NumEpochs, DivTrain, MiniBatchSize, NumTrainSamples, LatestFile)
         print("Loading latest checkpoint with the name " + LatestFile)
 
 
+#### TRAINING OPERATION
 def TrainOperation(
     DirNamesTrain,
     TrainCoordinates,
@@ -123,37 +164,42 @@ def TrainOperation(
     LatestFile,
     BasePath,
     LogsPath,
+    NumClasses,
     ModelType,
-    NumClasses
 ):
     """
     Inputs:
     ImgPH is the Input Image placeholder
-    DirNamesTrain - Variable with Subfolder paths to train files
-    TrainCoordinates - Coordinates corresponding to Train/Test
-    NumTrainSamples - length(Train)
-    ImageSize - Size of the image
-    NumEpochs - Number of passes through the Train data
-    MiniBatchSize is the size of the MiniBatch
-    SaveCheckPoint - Save checkpoint every SaveCheckPoint iteration in every epoch, checkpoint saved automatically after every epoch
-    CheckPointPath - Path to save checkpoints/model
-    DivTrain - Divide the data by this number for Epoch calculation, use if you have a lot of dataor for debugging code
-    LatestFile - Latest checkpointfile to continue training
-    BasePath - Path to COCO folder without "/" at the end
-    LogsPath - Path to save Tensorboard Logs
-    ModelType - Supervised or Unsupervised Model
+    DirNamesTrain       - Variable with Subfolder paths to train files
+    TrainCoordinates    - Coordinates corresponding to Train/Test
+    NumTrainSamples     - length(Train)
+    ImageSize           - Size of the image
+    NumEpochs           - Number of passes through the Train data
+    MiniBatchSize       - Size of the MiniBatch
+    SaveCheckPoint      - Save checkpoint every SaveCheckPoint iteration in every epoch, checkpoint saved automatically after every epoch
+    CheckPointPath      - Path to save checkpoints/model
+    DivTrain            - Divide the data by this number for Epoch calculation, use if you have a lot of dataor for debugging code
+    LatestFile          - Latest checkpointfile to continue training
+    BasePath            - Path to COCO folder without "/" at the end
+    LogsPath            - Path to save Tensorboard Logs
+    NumClasses          - Number of output values
+    ModelType           - Supervised or Unsupervised Model
     Outputs:
     Saves Trained network in CheckPointPath and Logs to LogsPath
     """
-    # Predict output with forward pass
-    model = HomographyModel(ImageSize,NumClasses)
-    model.to(device)
+    if ModelType == 'Sup':
+        # Predict output with forward pass
+        model = SupHomographyModel(ImageSize,NumClasses)
+        model.to(device)
+    else:
+        model = UnSupHomographyModel()
+        model.to(device)
 
     ###############################################
     # Fill your optimizer of choice here!
     ###############################################
-    # Optimizer = torch.optim.SGD(model.parameters(),lr = 0.0002)
-    Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.00001)
+    Optimizer = torch.optim.SGD(model.parameters(),lr = 0.00001)
+    # Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.00001)
 
     # Tensorboard
     # Create a summary to monitor loss tensor
@@ -169,21 +215,32 @@ def TrainOperation(
         StartEpoch = 0
         print("New model initialized....")
 
+
+    # Shuffiling the Order of the training images to avoid bias 
+    DirNamesTrain_ = random.sample(list(zip(DirNamesTrain, list(TrainCoordinates))), len(DirNamesTrain))
+
+    # Starting the training process
     for Epochs in tqdm(range(StartEpoch, NumEpochs)):
         NumIterationsPerEpoch = int(NumTrainSamples / MiniBatchSize / DivTrain)
         for PerEpochCounter in tqdm(range(NumIterationsPerEpoch)):
-            I1Batch = GenerateBatch(
-                BasePath, DirNamesTrain, TrainCoordinates, ImageSize, MiniBatchSize
-            )
+
+            if ModelType == 'Sup':
+                I1Batch = SupGenerateBatch(PerEpochCounter, BasePath, DirNamesTrain_, TrainCoordinates, ImageSize, MiniBatchSize)
+            else:
+                I1Batch, CoordinatesBatch = UnSupGenerateBatch(
+                    BasePath, DirNamesTrain_, TrainCoordinates, ImageSize, MiniBatchSize
+                    ) 
 
             # Predict output with forward pass
-            LossThisBatch = model.training_step(I1Batch)
-    
+            if ModelType == 'Sup':
+                LossThisBatch = model.training_step(I1Batch)
+            else:
+                PredicatedCoordinatesBatch = model(I1Batch)
+                LossThisBatch = UnSupLossFn(PredicatedCoordinatesBatch, CoordinatesBatch)
+
             Optimizer.zero_grad()
-            # print(LossThisBatch["loss"])
             LossThisBatch["loss"].backward()
             Optimizer.step()
-            # Optimizer.step(1)
 
             # # Save checkpoint every some SaveCheckPoint's iterations
             # if PerEpochCounter % SaveCheckPoint == 0:
@@ -207,7 +264,7 @@ def TrainOperation(
             #     )
             #     print("\n" + SaveName + " Model Saved...")
 
-            result = model.validation_step(I1Batch)           
+            result = model.validation_step(I1Batch)
             # Tensorboard
             Writer.add_scalar(
                 "LossEveryIter",
@@ -228,8 +285,9 @@ def TrainOperation(
             },
             SaveName,
         )
+        print("\n Validation Loss :",result["val_loss"].item())
         print("\n" + SaveName + " Model Saved...")
-        print("Validation Loss: ",result["val_loss"].item())
+
 
 
 def main():
@@ -243,8 +301,8 @@ def main():
     Parser = argparse.ArgumentParser()
     Parser.add_argument(
         "--BasePath",
-        default="/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data",
-        help="Base path of images, Default:/home/ajith/Documents/git_repos/RBE549_CV_Projects/ajayamoorthy_p1/Phase2/Data",
+        default="../Data",
+        help="Base path of images, Default:../Data",
     )
     Parser.add_argument(
         "--CheckPointPath",
@@ -254,13 +312,13 @@ def main():
 
     Parser.add_argument(
         "--ModelType",
-        default="Unsup",
-        help="Model type, Supervised or Unsupervised? Choose from Sup and Unsup, Default:Unsup",
+        default="Sup",
+        help="Model type, Supervised or Unsupervised? Choose from Sup and Unsup, Default:Sup",
     )
     Parser.add_argument(
         "--NumEpochs",
         type=int,
-        default=10,
+        default=5,
         help="Number of Epochs to Train for, Default:50",
     )
     Parser.add_argument(
@@ -272,7 +330,7 @@ def main():
     Parser.add_argument(
         "--MiniBatchSize",
         type=int,
-        default=64,
+        default=100,
         help="Size of the MiniBatch to use, Default:1",
     )
     Parser.add_argument(
@@ -293,16 +351,16 @@ def main():
         help="Path to save Logs for Tensorboard, Default=64",
     )
 
-    Args = Parser.parse_args()
-    NumEpochs = Args.NumEpochs
-    BasePath = Args.BasePath
-    DivTrain = float(Args.DivTrain)
-    MiniBatchSize = Args.MiniBatchSize
-    LoadCheckPoint = Args.LoadCheckPoint
-    CheckPointPath = Args.CheckPointPath
-    LogsPath = Args.LogsPath
-    ModelType = Args.ModelType
-    NumFeatures = Args.NumFeatures
+    Args            = Parser.parse_args()
+    NumEpochs       = Args.NumEpochs
+    BasePath        = Args.BasePath
+    DivTrain        = float(Args.DivTrain)
+    MiniBatchSize   = Args.MiniBatchSize
+    LoadCheckPoint  = Args.LoadCheckPoint
+    CheckPointPath  = Args.CheckPointPath
+    LogsPath        = Args.LogsPath
+    ModelType       = Args.ModelType
+    NumFeatures     = Args.NumFeatures
 
     # Setup all needed parameters including file reading
     (
@@ -312,7 +370,7 @@ def main():
         NumTrainSamples,
         TrainCoordinates,
         NumClasses,
-    ) = SetupAll(BasePath, CheckPointPath,NumFeatures)
+    ) = SetupAll(BasePath, CheckPointPath, NumFeatures)
 
     # Find Latest Checkpoint File
     if LoadCheckPoint == 1:
@@ -322,7 +380,7 @@ def main():
 
     # Pretty print stats
     PrettyPrint(NumEpochs, DivTrain, MiniBatchSize, NumTrainSamples, LatestFile)
-    torch.cuda.empty_cache()
+
     TrainOperation(
         DirNamesTrain,
         TrainCoordinates,
@@ -336,8 +394,8 @@ def main():
         LatestFile,
         BasePath,
         LogsPath,
+        NumClasses,
         ModelType,
-        NumClasses
     )
 
 
