@@ -199,8 +199,13 @@ def TrainOperation(
     # Fill your optimizer of choice here!
     ###############################################
     # Optimizer = torch.optim.SGD(model.parameters(),lr = 0.00001)
-    Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.000001)
-
+    Optimizer = torch.optim.AdamW(model.parameters(),lr = 0.0001)
+    print("Optimizer Information: \n", Optimizer.state_dict)
+    
+    # Tensorboard
+    # writer.add_graph(net,images)  # used to visualize the network
+    from torchsummary import summary
+    summary(model,input_size=(64,64,2))
     # Tensorboard
     # Create a summary to monitor loss tensor
     Writer = SummaryWriter(LogsPath)

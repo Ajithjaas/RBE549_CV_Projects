@@ -58,23 +58,47 @@ def patch_creator(img_gray, patch_size, rho):
     PatchB  = img_warped[PatchA_yMin:PatchA_yMin+patch_size, PatchA_xMin:PatchA_xMin+patch_size]    # PatchB extracted from the warped Image
     H4Pt    = PatchB_corners - PatchA_corners                                                       # Calculating the difference in the values of corner co-ordinates of PatchA and PatchB
 
-    ## Plot check for verification of the tranformation Matrices
-    # plt.imshow(PatchA)
+    # Plotting
+    # A_corn = np.vstack((PatchA_corners, PatchA_corners[0]))
+    # B_corn = np.vstack((PatchB_corners, PatchB_corners[0]))
+    # xA, yA = zip(*A_corn)
+    # xB, yB = zip(*B_corn)
+    # plt.axis('off')
+    # plt.imshow(img_gray,cmap='gray')
+    # plt.scatter(PatchA_corners[:,0], PatchA_corners[:,1], c='b')
+    # plt.scatter(PatchB_corners[:,0], PatchB_corners[:,1], c='r')
+    # plt.plot(xA, yA, c='b')
+    # plt.plot(xB, yB, c='r')
     # plt.show()
-    # plt.imshow(PatchB)
+    # plt.axis('off')
+    # plt.imshow(PatchA,cmap='gray')
     # plt.show()
-    # plt.imshow(img_gray)
+    # plt.axis('off')
+    # plt.imshow(PatchB,cmap='gray')
     # plt.show()
-    # plt.imshow(img_warped)
-    # plt.show()
+
     # C = np.hstack((PatchA_corners,np.array([1,1,1,1]).reshape(-1,1)))
     # C = C.T
-    # B = np.dot(H_AtoB,C)
+    # B = np.dot(H_BtoA,C)
     # B_norm = B / B[-1,:]
+    # B_norm = B_norm[:2,:].T
     # D = np.hstack((PatchB_corners,np.array([1,1,1,1]).reshape(-1,1)))
     # D = D.T
-    # A = np.dot(H_BtoA,C)
+    # A = np.dot(H_BtoA,D)
     # A_norm = A / A[-1,:]
+    # A_norm = A_norm[:2,:].T
+    # A_corn = np.vstack((A_norm, A_norm[0]))
+    # B_corn = np.vstack((B_norm, B_norm[0]))
+    # xA, yA = zip(*A_corn)
+    # xB, yB = zip(*B_corn)
+    # plt.axis('off')
+    # plt.imshow(img_warped,cmap='gray')
+    # plt.scatter(B_norm[:,0], B_norm[:,1], c='b')
+    # plt.scatter(A_norm[:,0], A_norm[:,1], c='r')
+    # plt.plot(xB, yB, c='b')
+    # plt.plot(xA, yA, c='r')
+    # plt.show()
+
     # print('A :',A)
     # print('Output:',A_norm)
     # print('PatchB :',PatchA_corners)
@@ -113,7 +137,7 @@ def patchGenerator(ZipFileString, NumFeatures, originalImgPath, patchImgPath, Zi
 
     # Patch_Creation Function
     TrainLabels = open(LabelsPath, "w") # Creating a file in the Txt folder to store the Labels we generated from the patch_creation function
-    rho         = 16                     # Maximum pertubation value in pixels
+    rho         = 16                    # Maximum pertubation value in pixels
     patch_size  = NumFeatures           # Dimension of the patch (The final patch dimensions = patch_size x patch_size)
 
     for i in range(1,numberOfFiles+1):
