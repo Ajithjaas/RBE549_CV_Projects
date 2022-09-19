@@ -1,7 +1,6 @@
 import dlib 
 import cv2
 import numpy as np 
-
 class FaceSwap:
     def __init__(self) -> None:
         self.pred_data = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
@@ -11,15 +10,15 @@ class FaceSwap:
         self.shapes = {"jaw":[i for i in range(17)],
                        "right_eyebrow":[i for i in range(17,22)],
                        "left_eyebrow":[i for i in range(22,27)],
-                       "nose":[i for i in range(27,31)],
-                       "nose_edge":[i for i in range(31,36)],
+                       "nose":[i for i in range(27,36)],
+                    #    "nose_edge":[i for i in range(31,36)],
                        "right_eye":[i for i in range(36,42)],
                        "left_eye":[i for i in range(42,48)],
                        "outer_lips":[i for i in range(48,60)],
                        "inner_lips":[i for i in range(60,68)]
                        }
     def landmarks(self,Image):
-        img = Image.copy()
+        img = Image #.copy()
         gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         faces = self.face_detector(gray_img)
         for face in faces:
@@ -43,13 +42,24 @@ class FaceSwap:
         if cv2.waitKey(0) & 0xff == 27:
             cv2.destroyAllWindows()
 
-
 def main():
     swap = FaceSwap()
-    Path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p2/Data/Shiva_img.jpeg"
-    Image = cv2.imread(Path)
-    face_marks = swap.landmarks(Image)
-    swap.plot_image(face_marks,"Facial Landmarks")
+    # Path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p2/Data/Shiva_img.jpeg"
+    # Image = cv2.imread(Path)
+    # face_marks = swap.landmarks(Image)
+    # swap.plot_image(face_marks,"Facial Landmarks")
+    cap = cv2.VideoCapture(0)
+    while True:
+        _,frame = cap.read()
+        # Image = cv2.imread(frame)
+        img = swap.landmarks(frame)
+        cv2.imshow("Face Landmarks", frame)
+        key = cv2.waitKey(1)
+        if key == 27:  break
+    cap.release()
+    cv2.destroyAllWindows()
+
+
 
 
 if __name__ == "__main__":
