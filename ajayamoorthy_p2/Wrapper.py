@@ -39,7 +39,7 @@ class FaceSwap:
                 for start,end in zip(shape_connect,shape_connect[1:]):
                     cv2.line(img, start, end, (0, 255, 0), 2)
         return img,facemark_coordinates
-    def delaunayTriangulation(self,Image,subdiv,facemark_coordinates):
+    def delaunayTriangulation(self,Image,facemark_coordinates):
         """ Delaunay Triangulation tries the maximize the smallest angle in each triangle, we will obtain the same triangulation in both the images
         See https://learnopencv.com/delaunay-triangulation-and-voronoi-diagram-using-opencv-c-python/
         """
@@ -55,9 +55,11 @@ class FaceSwap:
             elif point[1] > rect[3] :return False
             return True
         for points in facemark_coordinates:
+            size  =Image.shape 
+            rect = (0, 0, size[1], size[0])
+            subdiv = cv2.Subdiv2D(rect) 
             for p in points:
                 pt = tuple([int(p[0]),int(p[1])])
-                print(pt,type(pt))
                 subdiv.insert(pt)
             triangleList = subdiv.getTriangleList()
             for t in triangleList :
@@ -70,7 +72,6 @@ class FaceSwap:
                     cv2.line(img, pt3, pt1, delaunay_color, 1)#, cv2.CV_AA, 0)
         return img
 
-        
     def plot_image(self,Image,name):
         cv2.imshow(name,Image)
         if cv2.waitKey(0) & 0xff == 27:
@@ -78,22 +79,20 @@ class FaceSwap:
 
 def main():
     swap = FaceSwap()
-    # Path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p2/Data/Shiva_img.jpeg"
+    # Path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /Projects/RBE549_CV_Projects/ajayamoorthy_p2/Data/Shiva_img_3.jpeg"
     # Image = cv2.imread(Path)
-    # face_marks = swap.landmarks(Image)
+    # face_marks,facemark_coordinates  = swap.landmarks(Image)
     # swap.plot_image(face_marks,"Facial Landmarks")
+    # tri_img = swap.delaunayTriangulation(Image,facemark_coordinates)
+    # swap.plot_image(tri_img,"Delaunay Triangulation")
+
     cap = cv2.VideoCapture(0)
     while True:
-        _,frame = cap.read()
-        size  =frame.shape 
-        rect = (0, 0, size[1], size[0])
-        # Create an instance of Subdiv2D
-        subdiv = cv2.Subdiv2D(rect)
-        # Image = cv2.imread(frame)
+        _,frame = cap.read() 
+        frame = cv2.flip(frame,1)
         img,facemark_coordinates = swap.landmarks(frame)
         cv2.imshow("Face Landmarks", img)
-
-        tri_img = swap.delaunayTriangulation(frame,subdiv,facemark_coordinates)
+        tri_img = swap.delaunayTriangulation(frame,facemark_coordinates)
         cv2.imshow("Delaunay Triangulation", tri_img)
         key = cv2.waitKey(1)
         if key == 27:  break
