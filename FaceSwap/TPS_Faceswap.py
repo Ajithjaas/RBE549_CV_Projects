@@ -107,8 +107,8 @@ class FaceSwap:
         cv2.fillConvexPoly(masked, conv_hull, (255,255,255))
         masked = np.dstack((masked, masked, masked))
         img_blend = cv2.bitwise_and(self.face2, masked)
-        # self.plot_image(img_blend,"facial region")
-        # cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/14.png",img_blend)
+        self.plot_image(img_blend,"facial region")
+        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/17.png",img_blend)
         coordinates,center= patch(self.first_features)
         rows, cols = self.face2.shape[:2]
 
@@ -121,10 +121,10 @@ class FaceSwap:
                 if img_blend[Fy, Fx, 0] != 0:
                     warped_img[y, x, :] = img_blend[Fy, Fx, :]
                     warped_mask[y, x, :] = (255,255,255)
-        # self.plot_image(warped_img,"Warp")
-        # cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/15.png",warped_img)
+        self.plot_image(warped_img,"Warp")
+        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/18.png",warped_img)
         blended_img = cv2.seamlessClone(warped_img, self.face1, warped_mask, center, cv2.NORMAL_CLONE)  
-        # cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/16.png",blended_img)
+        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/19.png",blended_img)
 
         return  blended_img 
 
@@ -135,7 +135,7 @@ class FaceSwap:
 
 def main():
     face1 = cv2.imread("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/Shiva_img_2.jpeg")
-    face2 = cv2.imread("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/leo.webp")
+    face2 = cv2.imread("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/Ajith.JPG")
     faceswap = FaceSwap()
     output_img = faceswap.TPS(face1,face2)
     faceswap.plot_image(face1,"Face1")
