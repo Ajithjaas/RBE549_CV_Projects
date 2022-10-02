@@ -45,7 +45,8 @@ class FaceSwap:
         """ Delaunay Triangulation tries the maximize the smallest angle in each triangle, we will obtain the same triangulation in both the images
         See https://learnopencv.com/delaunay-triangulation-and-voronoi-diagram-using-opencv-c-python/
         """
-        delaunay_color = (255, 255, 255)
+        def delaunay_color():
+            return (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255))
         img = Image.copy()
         size = Image.shape
         r = (0, 0, size[1], size[0])
@@ -71,11 +72,10 @@ class FaceSwap:
                 pt2 = (int(t[2]), int(t[3]))
                 pt3 = (int(t[4]), int(t[5]))
                 if rect_contains(r, pt1) and rect_contains(r, pt2) and rect_contains(r, pt3) :
-                    cv2.line(img, pt1, pt2, delaunay_color, 1) #, cv2.CV_AA, 0)
-                    cv2.line(img, pt2, pt3, delaunay_color, 1)#, cv2.CV_AA, 0)
-                    cv2.line(img, pt3, pt1, delaunay_color, 1)#, cv2.CV_AA, 0)
-        return img,all_triangleList
-
+                    cv2.line(img, pt1, pt2, delaunay_color(), 2) #, cv2.CV_AA, 0)
+                    cv2.line(img, pt2, pt3, delaunay_color(), 2)#, cv2.CV_AA, 0)
+                    cv2.line(img, pt3, pt1, delaunay_color(), 2)#, cv2.CV_AA, 0)
+        return img,all_triangleList        
     def plot_image(self,Image,name):
         cv2.imshow(name,Image)
         if cv2.waitKey(0) & 0xff == 27:
@@ -83,12 +83,15 @@ class FaceSwap:
 
 def main():
     swap = FaceSwap()
-    Path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/Shiva_img_3.jpeg"
+    Path = "/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/margot.webp"
     Image = cv2.imread(Path)
     face_marks,facemark_coordinates = swap.landmarks(Image)
     swap.plot_image(face_marks,"Facial Landmarks")
+    cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/2.png",face_marks)
     tri_img,triangleList = swap.delaunayTriangulation(Image,facemark_coordinates)
     swap.plot_image(tri_img,"Delaunay Triangulation")
+    cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/4.png",tri_img)
+
 
 
     # cap = cv2.VideoCapture(0)

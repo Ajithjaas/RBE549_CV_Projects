@@ -7,19 +7,6 @@ class FaceSwap:
     def __init__(self) -> None:
         self.pred_data = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
         self.face_detector = dlib.get_frontal_face_detector()
-        # Indexing the detected face shapes based on : 
-        #https://pyimagesearch.com/wp-content/uploads/2017/04/facial_landmarks_68markup.jpg
-        self.shapes = {"jaw":[i for i in range(17)],
-                       "right_eyebrow":[i for i in range(17,22)],
-                       "left_eyebrow":[i for i in range(22,27)],
-                       "nose":[i for i in range(27,36)],
-                    #    "nose_edge":[i for i in range(31,36)],
-                       "right_eye":[i for i in range(36,42)],
-                       "left_eye":[i for i in range(42,48)],
-                       "outer_lips":[i for i in range(48,60)],
-                       "inner_lips":[i for i in range(60,68)]
-                       }
-        
         self._lambda=0.1 
 
     def landmarks(self,Image):
@@ -120,9 +107,8 @@ class FaceSwap:
         cv2.fillConvexPoly(masked, conv_hull, (255,255,255))
         masked = np.dstack((masked, masked, masked))
         img_blend = cv2.bitwise_and(self.face2, masked)
-
-
-
+        # self.plot_image(img_blend,"facial region")
+        # cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/14.png",img_blend)
         coordinates,center= patch(self.first_features)
         rows, cols = self.face2.shape[:2]
 
@@ -135,7 +121,11 @@ class FaceSwap:
                 if img_blend[Fy, Fx, 0] != 0:
                     warped_img[y, x, :] = img_blend[Fy, Fx, :]
                     warped_mask[y, x, :] = (255,255,255)
+        # self.plot_image(warped_img,"Warp")
+        # cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/15.png",warped_img)
         blended_img = cv2.seamlessClone(warped_img, self.face1, warped_mask, center, cv2.NORMAL_CLONE)  
+        # cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/16.png",blended_img)
+
         return  blended_img 
 
     def plot_image(self,Image,name):
@@ -151,6 +141,20 @@ def main():
     faceswap.plot_image(face1,"Face1")
     faceswap.plot_image(face2,"Face2")
     faceswap.plot_image(output_img,"Face 2 on Face 1")
-    
+
+    # faceswap = FaceSwap()
+    # # cap = cv2.VideoCapture(0)
+    # cap = cv2.VideoCapture('/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/Shiva_rec.mp4')
+    # face2 = cv2.imread("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Data/leo.webp")
+    # out = cv2.VideoWriter("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/output.avi", -1, 20.0, (640,480))
+    # while (cap.isOpened()):
+    #     _,face1 = cap.read() 
+    #     face1 = cv2.flip(face1,1)
+    #     output_img = faceswap.TPS(face1,face2)
+    #     out.write(output_img)
+    # cap.release()
+    # out.release()
+    # cv2.destroyAllWindows()
+
 if __name__ == '__main__':
     main()
