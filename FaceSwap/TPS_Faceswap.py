@@ -108,7 +108,7 @@ class FaceSwap:
         masked = np.dstack((masked, masked, masked))
         img_blend = cv2.bitwise_and(self.face2, masked)
         self.plot_image(img_blend,"facial region")
-        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/17.png",img_blend)
+        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/TPS_Outputs/17.png",img_blend)
         coordinates,center= patch(self.first_features)
         rows, cols = self.face2.shape[:2]
 
@@ -122,9 +122,9 @@ class FaceSwap:
                     warped_img[y, x, :] = img_blend[Fy, Fx, :]
                     warped_mask[y, x, :] = (255,255,255)
         self.plot_image(warped_img,"Warp")
-        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/18.png",warped_img)
+        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/TPS_Outputs/18.png",warped_img)
         blended_img = cv2.seamlessClone(warped_img, self.face1, warped_mask, center, cv2.NORMAL_CLONE)  
-        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/Outputs/19.png",blended_img)
+        cv2.imwrite("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/FaceSwap/TPS_Outputs/19.png",blended_img)
 
         return  blended_img 
 
