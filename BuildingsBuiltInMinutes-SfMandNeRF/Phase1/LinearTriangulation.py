@@ -6,7 +6,7 @@ def LinearTriangulation(K, C1, R1, C2, R2, x1, x2):
 
     I = np.identity(3)
 
-    P1 = np.dot(K, np.dot(R1, np.hstack((I, -C1))))
+    P1 = np.dot(K, np.dot(R1, np.hstack((I, -C1))))  # the P is written this way but not as P = K[R T] because the C and R here means the rotation and translation between cameras 
     P2 = np.dot(K, np.dot(R2, np.hstack((I, -C2))))
 
     x1 = np.hstack((x1, np.ones((x1.shape[0], 1)))) #Appending one to x1 and x2 
