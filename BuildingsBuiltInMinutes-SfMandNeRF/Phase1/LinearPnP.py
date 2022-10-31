@@ -17,6 +17,7 @@ def LinearPnP(X, x, K):
     U,D,VT = np.linalg.svd(K_inv.dot(P[:,0:3]))
     R = U.dot(VT)
     T = K_inv.dot(P[:,3:])/D[0,0]
+    return R,T 
 
 
 
