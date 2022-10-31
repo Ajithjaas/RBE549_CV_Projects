@@ -4,7 +4,7 @@ def LinearPnP(X, x, K):
     A =[]
     for i,Xi,xi in enumerate(zip(X,x)):
         Xx,Xy,Xz = Xi 
-        xx,xy,xz = xi 
+        xx,xy = xi 
         A.append([Xx,Xy,Xz,1,0,0,0,0,-xx*Xx,-xx*Xy,-xx*Xz,-xx])
         A.append([0,0,0,0,Xx,Xy,Xz,1,-xy*Xx,-xy*Xy,-xy*Xz,-xy])
     
