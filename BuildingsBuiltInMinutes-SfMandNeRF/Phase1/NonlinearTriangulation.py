@@ -6,7 +6,7 @@ def NonLinearTriangulation(K,R1,C1,R2,C2,x1, x2, X):
     P1 = np.dot(K, np.dot(R1, np.hstack((I, -C1)))) 
     P2 = np.dot(K, np.dot(R2, np.hstack((I, -C2))))
     X_new = [] 
-    for i,Xi,x1i,x2i  in enumerate(zip(X,x1,x2)):
+    for i,(Xi,x1i,x2i)  in enumerate(zip(X,x1,x2)):
         optimized= least_squares(fun=Error, x0=Xi, args=[P1, P2,x1i,x2i])
         X_new.append(optimized.x)
     return np.array(X_new)
