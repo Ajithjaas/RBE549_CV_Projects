@@ -11,7 +11,7 @@ def GetInliersRANSAC(M1,M2,iterations=100,threshold=0.01):
     n= 0 
     for i in range(iterations):
         #get random choices from matches 
-        eight_random_idx = random.sample(range(rows),4) 
+        eight_random_idx = random.sample(range(rows),8) 
         m1_eight = M1[eight_random_idx,:]
         m2_eight = M2[eight_random_idx,:]
         f = EstimateFundamentalMatrix(m1_eight, m2_eight)
