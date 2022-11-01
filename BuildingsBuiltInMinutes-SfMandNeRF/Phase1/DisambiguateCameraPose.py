@@ -3,8 +3,8 @@ import numpy as np
 def DisambiguateCameraPose(Rs,Cs,Xs):
     best_n =0 
     best_idx =0 
-    for i in range(len(Rs)):
-        R,C = R[i],C[i]
+    for i,R in enumerate(Rs):
+        C = Cs[i] 
         r3 = R[2] #get third row of R
         n=0 
         for X in Xs:
