@@ -15,7 +15,7 @@ def LinearTriangulation(K, C1, R1, C2, R2, x1, x2):
     # Now we need to find the skew symmetric matrix of these coordinates 
     s = lambda x: np.array([[0, -x[2], x[1]], [x[2], 0, x[0]], [x[1], x[0], 0]])
     X = np.zeros((x1.shape[0], 3))
-    for i,x1_i,x2_i in enumerate(zip(x1,x2)):
+    for i,(x1_i,x2_i) in enumerate(zip(x1,x2)):
         s1 = s(x1_i)
         s2 = s(x2_i)
         # Now we need to stack the dot product of this with P1 and P2 and stack them 
