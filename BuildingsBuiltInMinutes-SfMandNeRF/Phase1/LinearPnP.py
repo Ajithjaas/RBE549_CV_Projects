@@ -18,3 +18,9 @@ def LinearPnP(X, x, K):
     R = U.dot(VT)
     T = K_inv.dot(P[:,3:])/D[0]
     return R,T 
+
+if __name__ == "__main__":
+    X= np.random.randint(1000,size= (12,3))
+    x = np.random.randint(1000,size= (12,2))
+    K = np.loadtxt("/Users/ric137k/Desktop/Shiva/WPI/Course Work/RBE:CS 549 - Computer Vision /RBE549_CV_Projects/BuildingsBuiltInMinutes-SfMandNeRF/P3Data/calibration.txt")
+    print(LinearPnP(X,x,K))
