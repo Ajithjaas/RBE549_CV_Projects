@@ -18,7 +18,17 @@ def BundleAdjustment(X,x,Rs,Cs,K,V):
         XRCs0 = np.hstack((XRCs0,C.flatten()))
     # Here XRCs is the initial parameter array 
     optimized = least_squares(fun = Error,x0=XRCs0,args=[x,K,V,I,J])
-    print(optimized.x)
+#     print(optimized.x)
+    XRCs = optimized.x
+
+    X = [XRCs[i] for i in range(J*4)]
+    X = np.reshape(X,(J,4)) # contains all the X values 
+    XRCs = XRCs[J*4:] #everything remaining are Rs and Cs
+    Rs = [Rotation.from_quat(XRCs[i:i+4]).as_matrix() for i in range(0,I*4,4) ] 
+    XRCs = XRCs[I*4:] #eveything remains is Cs 
+    Cs = [XRCs[i:i+3] for i in range(0,I*3,3)] 
+
+    return Rs, Cs , X
 
 def Error(x0,x,K,V,I,J):
 
@@ -47,5 +57,7 @@ if __name__ == "__main__":
     x = np.random.randint(100,size= (Rs.shape[0],X.shape[0],2))
 
     V = np.random.randint(2,size=(Rs.shape[0],X.shape[0]))
-    print(V[1])
-    BundleAdjustment(X,x,Rs,Cs,K,V)
+    print(Rs,Cs)
+    print("______________")
+    print(X)
+    print(BundleAdjustment(X,x,Rs,Cs,K,V))
