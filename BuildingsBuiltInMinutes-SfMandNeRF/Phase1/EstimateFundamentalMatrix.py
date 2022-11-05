@@ -11,5 +11,7 @@ def EstimateFundamentalMatrix(x1,x2):
 
 if __name__ == "__main__":
     x1 = np.random.randint(10, size = (9,2)) 
-    x2 = np.random.randint(10, size = (9,2)) 
+    x2 = np.random.randint(10, size = (9,2))
+    print(x1)
+    print(x2) 
     print(EstimateFundamentalMatrix(x1,x2))
