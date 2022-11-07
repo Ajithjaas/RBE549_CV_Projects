@@ -1,16 +1,22 @@
 from mimetypes import init
 import os
 import cv2
-import pry
+# import pry
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 import argparse
 import scipy.io as sio
+from GetInliersRANSAC import GetInliersRANSAC
 from EstimateFundamentalMatrix import EstimateFundamentalMatrix
 from EssentialMatrixFromFundamentalMatrix import EssentialMatrixFromFundamentalMatrix
 from ExtractCameraPose import ExtractCameraPose
 from LinearTriangulation import LinearTriangulation
+from NonlinearTriangulation import NonLinearTriangulation
+from DisambiguateCameraPose import DisambiguateCameraPose
+from Plot3D import Plot3D
+import glob 
+
 
 def createMatchFiles(path = 'P3Data/'):
         """
@@ -50,13 +56,37 @@ def main():
 
     #******* CAMERA PARAMETERS *******
     K = np.loadtxt('P3Data/calibration.txt')
-    F = EstimateFundamentalMatrix(x1,x2)
+    x1_in,x2_in = GetInliersRANSAC(x1,x2,threshold=50)  # Doing only for the first two images 
+    print("Inliers size ", x1_in.shape[0])
+
+    F = EstimateFundamentalMatrix(x1_in,x2_in)
+    print("Fundamental Matrix is", F)
     E = EssentialMatrixFromFundamentalMatrix(K,F)
-    R,C = ExtractCameraPose(E)
-    print(R,C)
-    for i in range(3):
-        X.append(LinearTriangulation(K,C[i],R[i],C[i+1],R[i+1],x1,x2))
-    print(len(X))
+    print("Essential Matrix is", E)
+    Rs,Cs = ExtractCameraPose(E)
+    C1 = np.zeros((1,3)) #first camera's position
+    R1 = np.eye(3) # first camera's pose 
+    # print(Rs,Cs)
+    for i in range(4):
+        X.append(LinearTriangulation(K,C1,R1,Cs[i],Rs[i],x1_in,x2_in))
+    R,C,X = DisambiguateCameraPose(Rs,Cs,X)
+    X = np.array(X)
+    print(X)
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="g",s=1,label="Linear")
+    # plt.show()
+    X = NonLinearTriangulation(K,R1,C1,R,C,x1_in, x2_in, X) #Nonlinear Triangulation 
+    print("_______")
+    print(X)
+    ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="r",s=1,label="Non Linear")
+    plt.show()
+
+    Cset =[]
+    Rset =[] 
+    Cset.append(C)
+    Rset.append(R)
+
     
 if __name__ == '__main__':
     main()
