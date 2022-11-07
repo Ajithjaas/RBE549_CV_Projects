@@ -21,3 +21,6 @@ def Error(X,P1,P2,x1,x2):
     E1 = (P1[0].dot(X)/P1[2].dot(X)-x1[0])**2 + (P1[1].dot(X)/P1[2].dot(X)-x1[1])**2
     E2 = (P2[0].dot(X)/P2[2].dot(X)-x2[0])**2 + (P2[1].dot(X)/P2[2].dot(X)-x2[1])**2
     return E1+E2 
+
+
+    
