@@ -1,5 +1,4 @@
 import numpy as np
-import cv2 as cv 
 # from scipy.io import  loadmat 
 def EssentialMatrixFromFundamentalMatrix(K, F):
     # Should the coordinates be normalized ? 

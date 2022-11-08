@@ -58,11 +58,9 @@ def main():
     K = np.loadtxt('P3Data/calibration.txt')
     x1_in,x2_in = GetInliersRANSAC(x1,x2,threshold=1)  # Doing only for the first two images 
     print("Inliers size ", x1_in.shape[0])
-
     F = EstimateFundamentalMatrix(x1_in,x2_in)
     print("Fundamental Matrix is", F)
-    # E = EssentialMatrixFromFundamentalMatrix(K,F)
-    E, mask = cv2.findEssentialMat(x1_in,x2_in, K, cv2.RANSAC, prob=0.999, threshold=1.0)
+    E = EssentialMatrixFromFundamentalMatrix(K,F)
     print("Essential Matrix is", E)
     Rs,Cs = ExtractCameraPose(E)
     C1 = np.zeros((1,3)) #first camera's position

@@ -3,11 +3,6 @@ import cv2 as cv
 import math 
 
 def EstimateFundamentalMatrix(x1,x2):
-    # x1 = np.hstack((x1, np.ones((x1.shape[0], 1))))
-    # x2 = np.hstack((x2, np.ones((x2.shape[0], 1))))
-    # x1 = normalize_points(x1)
-    # x2 = normalize_points(x2)
-    # print(x1)
     A = np.zeros((len(x1),9))
     func = lambda x2,x1: [x1[0]*x2[0], x1[0]*x2[1], x1[0], x2[1]*x1[0], x1[1]*x2[1], x1[1], x2[0], x2[1], 1]
     A = np.array(list(map(func,x1,x2)))
@@ -26,4 +21,3 @@ if __name__ == "__main__":
     # print(x1)
     # print(x2) 
     print(EstimateFundamentalMatrix(x1,x2))
-
