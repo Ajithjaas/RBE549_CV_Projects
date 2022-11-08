@@ -10,7 +10,7 @@ def LinearPnP(X, x, K):
     
     # To get the values of P , now do the SVD 
     u, s, vh = np.linalg.svd(A)
-    p = vh[:, -1]
+    p = vh[np.argmin(s),:]
     p = np.reshape(p,(len(p), 1)) # this p vector has to be arranges such a way that we get original P 
     K_inv = np.linalg.inv(K) 
     P = np.reshape(p,(3,4))

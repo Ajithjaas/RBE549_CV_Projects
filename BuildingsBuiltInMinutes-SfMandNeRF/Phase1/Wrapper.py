@@ -56,7 +56,7 @@ def main():
 
     #******* CAMERA PARAMETERS *******
     K = np.loadtxt('P3Data/calibration.txt')
-    x1_in,x2_in = GetInliersRANSAC(x1,x2,threshold=1)  # Doing only for the first two images 
+    x1_in,x2_in = GetInliersRANSAC(x1,x2)  # Doing only for the first two images 
     print("Inliers size ", x1_in.shape[0])
     F = EstimateFundamentalMatrix(x1_in,x2_in)
     print("Fundamental Matrix is", F)
@@ -72,13 +72,15 @@ def main():
     X = np.array(X)
     print(X)
     fig = plt.figure()
-    # ax = fig.add_subplot(projection='2d')
+    # ax = fig.add_subplot(projection='3d')
+    # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="g",s=1,label="Linear")
+
     plt.scatter(X[:, 0], X[:, 2],c="g",s=1,label="Linear")
     
-    # plt.show()
     X = NonLinearTriangulation(K,R1,C1,R,C,x1_in, x2_in, X) #Nonlinear Triangulation 
     print("_______")
     print(X)
+    # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="r",s=1,label="Non Linear")
     plt.scatter(X[:, 0], X[:, 2],c="r",s=1,label="Non Linear")
     plt.legend()
     plt.show()

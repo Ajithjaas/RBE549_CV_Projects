@@ -2,7 +2,7 @@ from EstimateFundamentalMatrix import EstimateFundamentalMatrix
 import numpy as np
 import random 
 
-def GetInliersRANSAC(x1,x2,iterations=1000,threshold=100):
+def GetInliersRANSAC(x1,x2,iterations=1000,threshold=0.2):
     rows = x1.shape[0] 
     x1 = np.hstack((x1, np.ones((x1.shape[0], 1))))
     x2 = np.hstack((x2, np.ones((x2.shape[0], 1))))
@@ -19,15 +19,18 @@ def GetInliersRANSAC(x1,x2,iterations=1000,threshold=100):
         f = EstimateFundamentalMatrix(x18, x28)
         Errors = np.abs(x2.dot(f.dot(x1.T)))  # it should be x2T.F.x1 , but that way dimensions are not matching 
         Errors = np.mean(Errors, axis=1)
-        Errors[Errors<=threshold] = 1
-        Errors[Errors>threshold] = 0 
+        Errors = np.reshape(Errors,(1,Errors.shape[0]))
+        err1 = Errors<threshold
+        err0 = Errors>threshold
+        Errors[err1] = 1
+        Errors[err0] = 0 
         inliers= np.sum(Errors)
         if inliers> n :
             n = inliers 
             F = f
             indices = Errors==1
-            x1_inliers = x1[indices,:][:,:2]
-            x2_inliers = x2[indices,:][:,:2]
+            x1_inliers = x1[indices[0],:][:,:2]
+            x2_inliers = x2[indices[0],:][:,:2]
     return x1_inliers, x2_inliers  # We don't need  inliers anymore , but returning just in case 
 
 if __name__ == "__main__":
