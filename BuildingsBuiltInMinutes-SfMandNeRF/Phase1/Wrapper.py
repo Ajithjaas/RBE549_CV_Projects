@@ -14,7 +14,7 @@ from ExtractCameraPose import ExtractCameraPose
 from LinearTriangulation import LinearTriangulation
 from NonlinearTriangulation import NonLinearTriangulation
 from DisambiguateCameraPose import DisambiguateCameraPose
-from Plot3D import Plot3D
+from Plot3D import Plot3D, DrawCameras
 import glob 
 
 
@@ -72,7 +72,7 @@ def main():
     X = np.array(X)
     print(X)
     fig = plt.figure()
-    # ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot()#projection='3d')
     # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="g",s=1,label="Linear")
 
     plt.scatter(X[:, 0], X[:, 2],c="g",s=1,label="Linear")
@@ -82,6 +82,8 @@ def main():
     print(X)
     # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="r",s=1,label="Non Linear")
     plt.scatter(X[:, 0], X[:, 2],c="r",s=1,label="Non Linear")
+    DrawCameras(R1,C1[0],plt,ax,"1") #Draw 1st camera 
+    DrawCameras(R,C,plt,ax,"2")  # Draw 2nd camera
     plt.legend()
     plt.show()
 
