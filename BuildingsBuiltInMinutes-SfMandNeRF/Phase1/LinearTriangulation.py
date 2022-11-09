@@ -23,7 +23,7 @@ def LinearTriangulation(K, C1, R1, C2, R2, x1, x2):
         X.append(x)
     X = np.vstack(X) 
     return X
-    
+
 if __name__=="__main__":
     C1 = np.zeros((1,3))
     R1 = np.eye(3)
