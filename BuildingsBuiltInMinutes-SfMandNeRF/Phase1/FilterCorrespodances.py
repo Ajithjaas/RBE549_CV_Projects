@@ -7,6 +7,7 @@ def FilterCorrespondences(x_sos,X,x_sos_new,x_new_sos):
     x_sos_new - correspondence between one image from start of the service and the new image for example x1 read from macthing13.txt file 
     x_new_sos - x3 read from matching13.txt file 
     """
+    X = X[:,:3]
     ind_x_sos_new = []
     ind_x_sos =[]
     for i in x_sos_new:
@@ -19,11 +20,12 @@ def FilterCorrespondences(x_sos,X,x_sos_new,x_new_sos):
 
     # finally return the global coordinates that are already computed at SoS but correspond to new image , and the filtered correspondences  
 
-    return X[ind_x_sos], x_new_sos[ind_x_sos_new]  # this data cna be passed as it is to PnP RANSAC .........Hopefully! 
+    return X[ind_x_sos], x_sos_new[ind_x_sos_new] , x_new_sos[ind_x_sos_new]  # this data cna be passed as it is to PnP RANSAC .........Hopefully! 
 
 
 
 if __name__ == "__main__":
+    from PnPRANSAC import PnPRANSAC
 
     match1 = np.loadtxt('P3Data/matches/matches12.txt')
     x12 = match1[:,:2]
@@ -35,4 +37,10 @@ if __name__ == "__main__":
 
     X= np.random.randint(100,size=(x12.shape[0],3))
 
-    print(FilterCorrespondences(x12,X,x13,x31))
+    X,x1,x2 = FilterCorrespondences(x12,X,x13,x31)
+    K = np.loadtxt('P3Data/calibration.txt')
+
+    print(PnPRANSAC(X,x2,K))
+
+
+

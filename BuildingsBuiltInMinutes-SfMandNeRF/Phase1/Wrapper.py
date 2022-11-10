@@ -16,6 +16,10 @@ from NonlinearTriangulation import NonLinearTriangulation
 from DisambiguateCameraPose import DisambiguateCameraPose
 from Plot3D import Plot3D, DrawCameras
 import glob 
+from FilterCorrespodances import FilterCorrespondences
+from PnPRANSAC import PnPRANSAC
+
+from NonlinearPnP import NonlinearPnP 
 
 
 def createMatchFiles(path = 'P3Data/'):
@@ -49,7 +53,9 @@ def createMatchFiles(path = 'P3Data/'):
 def main():
     X = []
     #******* MATCHING FILE PREPARATION *********
-    createMatchFiles()
+    creatematches =False 
+    if creatematches:
+        createMatchFiles()
     match1 = np.loadtxt('P3Data/matches/matches12.txt')
     x1 = match1[:,:2]
     x2 = match1[:,2:4]
@@ -70,7 +76,7 @@ def main():
         X.append(LinearTriangulation(K,C1,R1,Cs[i],Rs[i],x1_in,x2_in))
     R,C,X = DisambiguateCameraPose(Rs,Cs,X)
     X = np.array(X)
-    print(X)
+    # print(X)
     fig = plt.figure()
     ax = fig.add_subplot()#projection='3d')
     # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="g",s=1,label="Linear")
@@ -78,20 +84,34 @@ def main():
     plt.scatter(X[:, 0], X[:, 2],c="g",s=1,label="Linear")
     
     X = NonLinearTriangulation(K,R1,C1,R,C,x1_in, x2_in, X) #Nonlinear Triangulation 
-    print("_______")
-    print(X)
+    # print("_______")
+    # print(X)
     # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="r",s=1,label="Non Linear")
     plt.scatter(X[:, 0], X[:, 2],c="r",s=1,label="Non Linear")
     DrawCameras(R1,C1[0],plt,ax,"1") #Draw 1st camera 
     DrawCameras(R,C,plt,ax,"2")  # Draw 2nd camera
+
+    pairs_of_interest = ['P3Data/matches/matches13.txt',
+                         'P3Data/matches/matches14.txt',
+                         'P3Data/matches/matches15.txt'
+                         ]
+
+    Xglobal =np.unique(np.copy(X),axis=0)
+
+    i=3
+
+    for pair in pairs_of_interest:
+        match1 = np.loadtxt(pair)
+        x1f = match1[:,:2]
+        x2f = match1[:,2:4]
+        Xf,x1f,x2f = FilterCorrespondences(x1_in,X,x1f,x2f)
+        R,C = PnPRANSAC(Xf,x2f,K)
+        R,C = NonlinearPnP(Xf,x2f,R,C,K)
+        DrawCameras(R,C,plt,ax,str(i))  # Draw 2nd camera
+        i+=1
+
     plt.legend()
     plt.show()
-
-    Cset =[]
-    Rset =[] 
-    Cset.append(C)
-    Rset.append(R)
-
     
 if __name__ == '__main__':
     main()

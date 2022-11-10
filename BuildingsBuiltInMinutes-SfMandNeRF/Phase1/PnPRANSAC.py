@@ -19,6 +19,8 @@ def PnPRANSAC(X,x,K,iterations=1000,threshold=1):
         R,C = LinearPnP(X12,x12,K)
         P = np.dot(K, np.dot(R, np.hstack((I, -C))))
         Errors = (P[0].dot(XT)/P[2].dot(XT)-x[:,0].T)**2 + (P[1].dot(XT)/P[2].dot(XT)-x[:,1])**2
+        print(Errors)
+        input("Close HERE")
         err1 = Errors<threshold
         err0 = Errors>threshold
         Errors[err1] = 1

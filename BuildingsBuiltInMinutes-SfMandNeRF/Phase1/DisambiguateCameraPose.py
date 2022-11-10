@@ -14,7 +14,7 @@ def DisambiguateCameraPose(Rs,Cs,Xs):
             if r3.dot(X-C)>0 and X[2]>0:
                 n+=1
         if n > best_n:
-            print(n)
+            # print(n)
             best_n = n 
             best_idx = i 
     return Rs[best_idx],Cs[best_idx], Xs[best_idx ]
