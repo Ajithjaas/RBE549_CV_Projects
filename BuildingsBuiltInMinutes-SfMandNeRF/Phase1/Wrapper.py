@@ -53,7 +53,7 @@ def createMatchFiles(path = 'P3Data/'):
 def main():
     X = []
     #******* MATCHING FILE PREPARATION *********
-    creatematches =False 
+    creatematches =True 
     if creatematches:
         createMatchFiles()
     match1 = np.loadtxt('P3Data/matches/matches12.txt')
@@ -108,6 +108,9 @@ def main():
         R,C = PnPRANSAC(Xf,x2f,K)
         R,C = NonlinearPnP(Xf,x2f,R,C,K)
         DrawCameras(R,C,plt,ax,str(i))  # Draw 2nd camera
+        Xnew = LinearTriangulation(K,C1,R1,C,R,x1_in,x2f)
+        Xnew = NonLinearTriangulation(K,R1,C1,R,C,x1_in, x2f, Xnew)
+        plt.scatter(Xnew[:, 0], Xnew[:, 2],c="b",s=1,label="Non")
         i+=1
 
     plt.legend()

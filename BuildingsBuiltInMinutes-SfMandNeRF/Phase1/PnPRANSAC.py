@@ -2,7 +2,7 @@ import numpy as  np
 import random 
 from LinearPnP import LinearPnP
 
-def PnPRANSAC(X,x,K,iterations=1000,threshold=1):
+def PnPRANSAC(X,x,K,iterations=1000,threshold=0.01):
     N = X.shape[0] 
     rdm_idx_12 = np.transpose(random.sample(range(N),12)) 
     X12 = X[rdm_idx_12]
@@ -19,9 +19,13 @@ def PnPRANSAC(X,x,K,iterations=1000,threshold=1):
         R,C = LinearPnP(X12,x12,K)
         P = np.dot(K, np.dot(R, np.hstack((I, -C))))
         Errors = (P[0].dot(XT)/P[2].dot(XT)-x[:,0].T)**2 + (P[1].dot(XT)/P[2].dot(XT)-x[:,1])**2
-        print(Errors)
-        input("Close HERE")
-        err1 = Errors<threshold
+        # print(Errors)
+        # input("Close HERE")
+        Errors = Errors/np.linalg.norm(Errors) #normalize the error 
+        # print(Errors)
+        # input()
+
+        err1 = Errors<=threshold
         err0 = Errors>threshold
         Errors[err1] = 1
         Errors[err0] = 0 
