@@ -30,9 +30,8 @@ def PnPRANSAC(X,x,K,iterations=1000,threshold=0.01):
         Errors[err1] = 1
         Errors[err0] = 0 
         inliers= np.sum(Errors)
-        count= np.sum(Errors)
-        if count> n :
-            n = count 
+        if inliers> n :
+            n = inliers 
             R_best = R
             C_best = C
     return R_best , C_best 
