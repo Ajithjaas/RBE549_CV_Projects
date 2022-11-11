@@ -18,8 +18,8 @@ from Plot3D import Plot3D, DrawCameras
 import glob 
 from FilterCorrespodances import FilterCorrespondences
 from PnPRANSAC import PnPRANSAC
-
 from NonlinearPnP import NonlinearPnP 
+from BundleAdjustment import BundleAdjustment 
 
 
 def createMatchFiles(path = 'P3Data/'):
@@ -79,15 +79,9 @@ def main():
     # print(X)
     fig = plt.figure()
     ax = fig.add_subplot()#projection='3d')
-    # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="g",s=1,label="Linear")
-
-    plt.scatter(X[:, 0], X[:, 2],c="g",s=1,label="Linear")
-    
+    plt.scatter(X[:, 0], X[:, 2],c="g",s=1,label="Linear SoS")
     X = NonLinearTriangulation(K,R1,C1,R,C,x1_in, x2_in, X) #Nonlinear Triangulation 
-    # print("_______")
-    # print(X)
-    # ax.scatter(X[:, 0], X[:, 1], X[:, 2],c="r",s=1,label="Non Linear")
-    plt.scatter(X[:, 0], X[:, 2],c="r",s=1,label="Non Linear")
+    plt.scatter(X[:, 0], X[:, 2],c="r",s=1,label="Non Linear SoS")
     DrawCameras(R1,C1[0],plt,ax,"1") #Draw 1st camera 
     DrawCameras(R,C,plt,ax,"2")  # Draw 2nd camera
 
@@ -97,9 +91,13 @@ def main():
                          ]
 
     Xglobal =np.unique(np.copy(X),axis=0)
-
+    Rs=[]
+    Cs =[] 
+    Rs.append(R1)
+    Cs.append(C1)
+    Rs.append(R)
+    Cs.append(C)
     i=3
-
     for pair in pairs_of_interest:
         match1 = np.loadtxt(pair)
         x1f = match1[:,:2]
@@ -108,36 +106,16 @@ def main():
         Xf,x1f,x2f = FilterCorrespondences(x1_in,X,x1f,x2f)
         R,C = PnPRANSAC(Xf,x2f,K)
         R,C = NonlinearPnP(Xf,x2f,R,C,K)
+        Rs.append(R)
+        Cs.append(C)
         DrawCameras(R,C,plt,ax,str(i))  # Draw 2nd camera
         Xnew = LinearTriangulation(K,C1,R1,C,R,x1_in,x2f)
+        # plt.scatter(Xnew[:, 0], Xnew[:, 2],c="c",s=1,label="Linear next images")
         Xnew = NonLinearTriangulation(K,R1,C1,R,C,x1_in, x2f, Xnew)
-        plt.scatter(Xnew[:, 0], Xnew[:, 2],c="b",s=1,label="Non")
+        plt.scatter(Xnew[:, 0], Xnew[:, 2],c="b",s=1)#,label="Image" +  str(i))
         i+=1
 
-    # pairs_of_interest = ['P3Data/matches/matches23.txt',
-    #                      'P3Data/matches/matches34.txt',
-    #                      'P3Data/matches/matches45.txt'
-    #                      ]
-
-    # Xglobal =np.unique(np.copy(X),axis=0)
-
-    # i=3
-
-    # for pair in pairs_of_interest:
-    #     match = np.loadtxt(pair)
-    #     x1f = match[:,:2]
-    #     x2f = match[:,2:4]
-    #     X,x2_in,x2f = FilterCorrespondences(x2_in,X,x1f,x2f)
-    #     print(X)
-    #     R,C = PnPRANSAC(X,x2f,K)
-    #     R,C = NonlinearPnP(X,x2f,R,C,K)
-    #     DrawCameras(R,C,plt,ax,str(i))  # Draw 2nd camera
-    #     X = LinearTriangulation(K,C1,R1,C,R,x2_in,x2f)
-    #     X = NonLinearTriangulation(K,R1,C1,R,C,x2_in, x2f, X)
-    #     plt.scatter(X[:, 0], X[:, 2],c="b",s=1,label="Non")
-    #     x2_in = np.copy(x2f)
-    #     i+=1
-
+        #Bundle adjustment has to be called here
     plt.legend()
     plt.show()
     
