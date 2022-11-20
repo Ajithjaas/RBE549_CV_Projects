@@ -237,17 +237,27 @@ class MSCKF(object):
         first few IMU readings.
         """
         # Initialize the gyro_bias given the current angular and linear velocity
-        ...
-
+        sum_angular_vel = np.zeros(3)
+        sum_linear_acc = np.zeros(3) 
+        print("THIS IS IMU MSG BUFFER *******************",self.imu_msg_buffer)
+        for imu_msg in self.imu_msg_buffer:
+            sum_angular_vel+=imu_msg.angular_velocity
+            sum_linear_acc = imu_msg.linear_acceleration
+        size = len(self.imu_msg_buffer)
+        self.state_server.imu_state.gyro_bias = sum_angular_vel / size
+        # IMUState.gravity = -sum_linear_acc / size
         # Find the gravity in the IMU frame.
-        ...
-        
-        # Normalize the gravity and save to IMUState          
-        ...
-
+        gravity_imu = sum_linear_acc /size  #This is the gravity in the IMU frame.
+        # Normalize the gravity and save to IMUState  
+        gravity_norm= np.linalg.norm(gravity_imu)
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
-        ...
+        # this is nothing but find the quaternion that transforms vector u to vector v through rotation 
+        IMUState.gravity = np.array([0,0,-gravity_norm])
+        u = gravity_imu/np.linalg.norm(gravity_imu)   
+        v = -IMUState.gravity/np.linalg.norm(-IMUState.gravity)
+        quat = np.append(np.cross(u,v),np.dot(u,v))
+        self.state_server.imu_state.orientation = quat/np.linalg.norm(quat)
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
