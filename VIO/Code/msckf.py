@@ -272,16 +272,31 @@ class MSCKF(object):
         # Execute process model.
         # Update the state info
         # Repeat until the time_bound is reached
-        ...
-        
+        used_imu_msg_cntr = 0 # Counter how many IMU msgs in the buffer are used 
+
+        # print("TIME++++ STAMP", self.state_server.imu_state.timestamp, time_bound)
+        for imu_msg in self.imu_msg_buffer:
+            imu_time = imu_msg.timestamp 
+            if imu_time<self.state_server.imu_state.timestamp:
+                used_imu_msg_cntr+=1 
+                continue
+            if imu_time > time_bound:
+                break 
+
+            m_gyro = imu_msg.angular_velocity
+            m_acc = imu_msg.linear_acceleration 
+
+            self.process_model(imu_time,m_gyro,m_acc)
+            used_imu_msg_cntr +=1 
+
         # Set the current imu id to be the IMUState.next_id
-        ...
-        
+        self.state_server.imu_state.id = IMUState.next_id
+
         # IMUState.next_id increments
-        ...
+        IMUState.next_id+=1 
 
         # Remove all used IMU msgs.
-        ...
+        # self.imu_msg_buffer.remove
 
     def process_model(self, time, m_gyro, m_acc):
         """
