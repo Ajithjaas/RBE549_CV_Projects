@@ -254,10 +254,14 @@ class MSCKF(object):
         # is consistent with the inertial frame.
         # this is nothing but find the quaternion that transforms vector u to vector v through rotation 
         IMUState.gravity = np.array([0,0,-gravity_norm])
-        u = gravity_imu/np.linalg.norm(gravity_imu)   
-        v = -IMUState.gravity/np.linalg.norm(-IMUState.gravity)
-        quat = np.append(np.cross(u,v),np.dot(u,v))
-        self.state_server.imu_state.orientation = quat/np.linalg.norm(quat)
+
+        q = from_two_vectors(gravity_imu,-IMUState.gravity)
+        self.state_server.imu_state.orientation = to_quaternion(np.transpose(to_rotation(q)))
+        # u = gravity_imu/np.linalg.norm(gravity_imu)   
+        # v = -IMUState.gravity/np.linalg.norm(-IMUState.gravity)
+        # quat = np.append(np.cross(u,v),np.dot(u,v))
+        # self.state_server.imu_state.orientation = quat/np.linalg.norm(quat)
+        
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
@@ -297,6 +301,8 @@ class MSCKF(object):
 
         # Remove all used IMU msgs.
         # self.imu_msg_buffer.remove
+        self.imu_msg_buffer.clear()
+
 
     def process_model(self, time, m_gyro, m_acc):
         """
@@ -306,29 +312,72 @@ class MSCKF(object):
         Section III.A: The dynamics of the error IMU state following equation (2) in the "MSCKF" paper.
         """
         # Get the error IMU state
-        ...
+        
+        imu_state = self.state_server.imu_state 
+        gyro = m_gyro- imu_state.gyro_bias
+        acc = m_acc- imu_state.acc_bias 
+        dtime = time - imu_state.timestamp 
 
         # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
-        ...
-        
+        F = np.zeros((21,21)) 
+        G = np.zeros((21,12))
+
+        F[0:3,0:3] = -skew(gyro)
+        F[0:3,3:6] = -np.eye(3) 
+
+        F[6:9,0:3] = -np.transpose(to_rotation(imu_state.orientation)).dot(skew(acc))
+        F[6:9,9:12]= -np.transpose(to_rotation(imu_state.orientation))
+        F[12:15,6:9] = np.eye(3) 
+
+        G[0:3,0:3] = -np.eye(3) 
+        G[3:6,3:6] = np.eye(3) 
+        G[6:9,6:9] = -np.transpose(to_rotation(imu_state.orientation))
+        G[9:12,9:12] = np.eye(3) 
+
         # Approximate matrix exponential to the 3rd order, which can be 
         # considered to be accurate enough assuming dt is within 0.01s.
-        ...
+        Fdt = F*dtime 
+        Fdt_square = Fdt*Fdt 
+        Fdt_cube  = Fdt_square*Fdt 
+        Phi = np.eye(21) + Fdt + 0.5*Fdt_square + (1.0/6.0) *Fdt_cube 
 
         # Propogate the state using 4th order Runge-Kutta
-        self.predict_new_state(dt, gyro, acc)
+        self.predict_new_state(dtime, gyro, acc)
 
         # Modify the transition matrix
-        ...
+        R_kk_1 = to_rotation(imu_state.orientation_null)
+        Phi[0:3,0:3] = to_rotation(imu_state.orientation).dot(np.transpose(R_kk_1))
 
-        # Propogate the state covariance matrix.
-        ...
+        u = R_kk_1.dot(IMUState.gravity)
+        s = np.inv(np.transpose(u).dot(u)).dot(np.transpose(u))
+        A1 = Phi[6:9,0:3] 
+        w1 = skew(imu_state.velocity_null-imu_state.velocity).dot(IMUState.gravity)
+        Phi[6:9,0:3] = A1-(A1.dot(u)-w1).dot(s) 
+
+        A2 = Phi[12:15,0:3]
+        w2 = skew(dtime*imu_state.velocity_null+imu_state.position_null-imu_state.position).dot(IMUState.gravity)
+        Phi[12:15,0:3] = A2- (A2.dot(u)-w2).dot(s)
+
+        # Propagate the state covariance matrix.
+
+        Q = Phi.dot(G).dot(self.state_server.continuous_noise_cov).dot(np.transpose(G)).dot(np.transpose(Phi))*dtime
+        self.state_server.state_cov[0:21,0:21] = Phi.dot(self.state_server.state_cov[0:21,0:21]).dot(np.transpose(Phi))+Q
+
+        if len(self.state_server.cam_states)>0:
+            self.state_server.state_cov[0:21,21:len(self.state_server.state_cov[0])-21] = Phi.dot(self.state_server.state_cov[0:21,21:len(self.state_server.state_cov[0])-21])
+            self.state_server.state_cov[21:len(self.state_server.state_cov)-21,0:21] = np.dot(self.state_server.state_cov[21:len(self.state_server.state_cov)-21,0:21] ,np.transpose(Phi))
 
         # Fix the covariance to be symmetric
-        ...
-        
+        state_cov_fixed = (self.state_server.state_cov +np.transpose(self.state_server.state_cov))/2.0
+        self.state_server.state_cov = state_cov_fixed 
+
         # Update the state correspondes to null space.
-        ...
+        imu_state.orientation_null = imu_state.orientation 
+        imu_state.position_null = imu_state.position
+        imu_state.velocity_null = imu_state.velocity
+
+        #update the state info 
+        self.state_server.imu_state.timestamp = time 
         
 
     def predict_new_state(self, dt, gyro, acc):
