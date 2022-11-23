@@ -242,7 +242,7 @@ class MSCKF(object):
         print("THIS IS IMU MSG BUFFER *******************",self.imu_msg_buffer)
         for imu_msg in self.imu_msg_buffer:
             sum_angular_vel+=imu_msg.angular_velocity
-            sum_linear_acc = imu_msg.linear_acceleration
+            sum_linear_acc += imu_msg.linear_acceleration
         size = len(self.imu_msg_buffer)
         self.state_server.imu_state.gyro_bias = sum_angular_vel / size
         # IMUState.gravity = -sum_linear_acc / size
@@ -301,7 +301,10 @@ class MSCKF(object):
 
         # Remove all used IMU msgs.
         # self.imu_msg_buffer.remove
-        self.imu_msg_buffer.clear()
+        # self.imu_msg_buffer.clear()
+        # inds = [i for i in range(used_imu_msg_cntr,len(self.imu_msg_buffer))]
+        # self.imu_msg_buffer = self.imu_msg_buffer[inds]
+
 
 
     def process_model(self, time, m_gyro, m_acc):
@@ -346,10 +349,15 @@ class MSCKF(object):
 
         # Modify the transition matrix
         R_kk_1 = to_rotation(imu_state.orientation_null)
+        # print("IMU NULL", imu_state.orientation_null)
         Phi[0:3,0:3] = to_rotation(imu_state.orientation).dot(np.transpose(R_kk_1))
-
+        print("GRAVITY" ,IMUState.gravity)
+        print("RKK1", R_kk_1)
         u = R_kk_1.dot(IMUState.gravity)
-        s = np.inv(np.transpose(u).dot(u)).dot(np.transpose(u))
+        print("This is U", u)
+        # ut = np.reshape(u,(3,1))
+        ut = np.reshape(u,(3,1)) #transposing u 
+        s = np.linalg.inv(ut.dot(np.array([u]))).dot(ut)
         A1 = Phi[6:9,0:3] 
         w1 = skew(imu_state.velocity_null-imu_state.velocity).dot(IMUState.gravity)
         Phi[6:9,0:3] = A1-(A1.dot(u)-w1).dot(s) 
@@ -386,35 +394,56 @@ class MSCKF(object):
         """
         """Propogate the state using 4th order Runge-Kutta for equstion (1) in "MSCKF" paper"""
         # compute norm of gyro
-        ...
+        gyro_norm = np.linalg.norm(gyro)
         
         # Get the Omega matrix, the equation above equation (2) in "MSCKF" paper
-        ...
+        Omega = np.zeros((4,4))
+        Omega[0:3,0:3] = -skew(gyro)
+        Omega[0:3,3] = gyro 
+        Omega[3,0:3] = -gyro 
+
         
         # Get the orientation, velocity, position
-        ...
-        
+        q = self.state_server.imu_state.orientation
+        v = self.state_server.imu_state.velocity
+        p = self.state_server.imu_state.position
         # Compute the dq_dt, dq_dt2 in equation (1) in "MSCKF" paper
-        ...
-        
+        if gyro_norm > 1e-5:
+            dq_dt = (np.cos(gyro_norm*0.5)*np.eye(4) + 1/gyro_norm*np.sin(gyro_norm*dt*0.5)*Omega).dot(q) 
+            dq_dt2 =(np.cos(gyro_norm*0.25)*np.eye(4) + 1/gyro_norm*np.sin(gyro_norm*dt*0.25)*Omega).dot(q) 
+        else:
+            dq_dt = (np.eye(4) + 0.5*dt*Omega).dot(np.cos(gyro_norm*dt*0.5)*q)
+            dq_dt2 = (np.eye(4) + 0.25*dt*Omega).dot(np.cos(gyro_norm*dt*0.25)*q)
+
+        dR_dt_transpose = np.transpose(to_rotation(dq_dt))
+        dR_dt2_transpose = np.transpose(to_rotation(dq_dt2))
+
         # Apply 4th order Runge-Kutta 
         # k1 = f(tn, yn)
-        ...
+        k1_v_dot = np.transpose(to_rotation(q)).dot(acc) +IMUState.gravity 
+        k1_p_dot = v 
 
         # k2 = f(tn+dt/2, yn+k1*dt/2)
-        ...
-        
+        k1_v = v + k1_v_dot*dt/2 
+        k2_v_dot = dR_dt2_transpose.dot(acc) + IMUState.gravity 
+        k2_p_dot = k1_v 
+
         # k3 = f(tn+dt/2, yn+k2*dt/2)
-        ...
-        
+        k2_v = v+ k2_v_dot*dt/2 
+        k3_v_dot = dR_dt2_transpose.dot(acc) + IMUState.gravity
+        k3_p_dot = k2_v 
+
         # k4 = f(tn+dt, yn+k3*dt)
-        ...
+        k3_v = v+k3_v_dot*dt 
+        k4_v_dot = dR_dt_transpose.dot(acc) + IMUState.gravity 
+        k4_p_dot = k3_v 
 
         # yn+1 = yn + dt/6*(k1+2*k2+2*k3+k4)
-        ...
-
+        q = dq_dt 
+        q = quaternion_normalize(q)
         # update the imu state
-        ...
+        v = v + dt/6*(k1_v_dot+2*k2_v_dot+2*k3_v_dot+k4_v_dot)
+        p = p + dt/6*(k1_p_dot+2*k2_p_dot+2*k3_p_dot+k4_p_dot)
 
     
     def state_augmentation(self, time):
