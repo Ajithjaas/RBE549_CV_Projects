@@ -255,8 +255,8 @@ class MSCKF(object):
         # this is nothing but find the quaternion that transforms vector u to vector v through rotation 
         IMUState.gravity = np.array([0,0,-gravity_norm])
 
-        q = from_two_vectors(gravity_imu,-IMUState.gravity)
-        self.state_server.imu_state.orientation = to_quaternion(np.transpose(to_rotation(q)))
+        # q = from_two_vectors(gravity_imu,-IMUState.gravity)
+        self.state_server.imu_state.orientation = from_two_vectors(-IMUState.gravity,gravity_imu) #to_quaternion(np.transpose(to_rotation(q)))
         # u = gravity_imu/np.linalg.norm(gravity_imu)   
         # v = -IMUState.gravity/np.linalg.norm(-IMUState.gravity)
         # quat = np.append(np.cross(u,v),np.dot(u,v))
@@ -292,6 +292,7 @@ class MSCKF(object):
 
             self.process_model(imu_time,m_gyro,m_acc)
             used_imu_msg_cntr +=1 
+            self.state_server.imu_state.timestamp = imu_time 
 
         # Set the current imu id to be the IMUState.next_id
         self.state_server.imu_state.id = IMUState.next_id
@@ -304,6 +305,7 @@ class MSCKF(object):
         # self.imu_msg_buffer.clear()
         # inds = [i for i in range(used_imu_msg_cntr,len(self.imu_msg_buffer))]
         # self.imu_msg_buffer = self.imu_msg_buffer[inds]
+        self.imu_msg_buffer = self.imu_msg_buffer[used_imu_msg_cntr:]
 
 
 
@@ -340,8 +342,8 @@ class MSCKF(object):
         # Approximate matrix exponential to the 3rd order, which can be 
         # considered to be accurate enough assuming dt is within 0.01s.
         Fdt = F*dtime 
-        Fdt_square = Fdt*Fdt 
-        Fdt_cube  = Fdt_square*Fdt 
+        Fdt_square = Fdt.dot(Fdt) 
+        Fdt_cube  = Fdt_square.dot(Fdt) 
         Phi = np.eye(21) + Fdt + 0.5*Fdt_square + (1.0/6.0) *Fdt_cube 
 
         # Propogate the state using 4th order Runge-Kutta
@@ -357,7 +359,8 @@ class MSCKF(object):
         print("This is U", u)
         # ut = np.reshape(u,(3,1))
         ut = np.reshape(u,(3,1)) #transposing u 
-        s = np.linalg.inv(ut.dot(np.array([u]))).dot(ut)
+        # s = np.linalg.inv(ut.dot(np.array([u]))).dot(ut)
+        s = u/u.dot(u)
         A1 = Phi[6:9,0:3] 
         w1 = skew(imu_state.velocity_null-imu_state.velocity).dot(IMUState.gravity)
         Phi[6:9,0:3] = A1-(A1.dot(u)-w1).dot(s) 
@@ -444,7 +447,6 @@ class MSCKF(object):
         # update the imu state
         v = v + dt/6*(k1_v_dot+2*k2_v_dot+2*k3_v_dot+k4_v_dot)
         p = p + dt/6*(k1_p_dot+2*k2_p_dot+2*k3_p_dot+k4_p_dot)
-
     
     def state_augmentation(self, time):
         """
@@ -454,23 +456,43 @@ class MSCKF(object):
         Compute the state covariance matrix in equation (3) in the "MSCKF" paper.
         """
         # Get the imu_state, rotation from imu to cam0, and translation from cam0 to imu
-        ...
-
-        # Add a new camera state to the state server.
-        ...
+        R_i_c = self.state_server.imu_state.R_imu_cam0
+        t_c_i = self.state_server.imu_state.t_cam0_imu
         
-
+        # Add a new camera state to the state server.
+        R_w_i = to_rotation(self.state_server.imu_state.orientation)
+        R_w_c = R_i_c.dot(R_w_i) 
+        t_c_w = self.state_server.imu_state.position  + np.transpose(R_w_i).dot(t_c_i)
+        self.state_server.cam_states[self.state_server.imu_state.id] = CAMState(self.state_server.imu_state.id)
+        cam_state = self.state_server.cam_states[self.state_server.imu_state.id]
+        cam_state.time = time 
+        cam_state.orientation = to_quaternion(R_w_c)
+        cam_state.position = t_c_w 
+        cam_state.orientation_null = cam_state.orientation 
+        cam_state.position_null = cam_state.position 
         # Update the covariance matrix of the state.
         # To simplify computation, the matrix J below is the nontrivial block
         # Appendix B of "MSCKF" paper.
-        ...
+        J = np.zeros((6,21))
+
+        J[0:3,0:3] = R_i_c
+        J[0:3,15:18] = np.eye(3) 
+        J[3:6,0:3] = skew(np.transpose(R_w_i).dot(t_c_i))
+        J[3:6,12:15] = np.eye(3) 
+        J[3:6,18:21] = np.transpose(R_w_i)
 
         # Resize the state covariance matrix.
-        ...
-
+        old_rows,old_cols = self.state_server.state_cov.shape
+        zero_cols = np.zeros((old_rows,6))
+        zero_rows = np.zeros((6,old_cols+6))
+        self.state_server.state_cov = np.hstack((self.state_server.state_cov,zero_cols))
+        self.state_server.state_cov = np.vstack((self.state_server.state_cov,zero_rows))
+        
         # Fill in the augmented state covariance.
-        ...
 
+        
+
+        
         # Fix the covariance to be symmetric
         ...
 
