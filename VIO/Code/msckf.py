@@ -255,8 +255,8 @@ class MSCKF(object):
         # this is nothing but find the quaternion that transforms vector u to vector v through rotation 
         IMUState.gravity = np.array([0,0,-gravity_norm])
 
-        # q = from_two_vectors(gravity_imu,-IMUState.gravity)
-        self.state_server.imu_state.orientation = from_two_vectors(-IMUState.gravity,gravity_imu) #to_quaternion(np.transpose(to_rotation(q)))
+        q0_i_w = from_two_vectors(gravity_imu,-IMUState.gravity) 
+        self.state_server.imu_state.orientation = to_quaternion(np.transpose(to_rotation(q0_i_w)))
         # u = gravity_imu/np.linalg.norm(gravity_imu)   
         # v = -IMUState.gravity/np.linalg.norm(-IMUState.gravity)
         # quat = np.append(np.cross(u,v),np.dot(u,v))
@@ -489,11 +489,15 @@ class MSCKF(object):
         zero_rows = np.zeros((6,old_cols+6))
         self.state_server.state_cov = np.hstack((self.state_server.state_cov,zero_cols))
         self.state_server.state_cov = np.vstack((self.state_server.state_cov,zero_rows))
+        P11 = self.state_server.state_cov[0:21, 0:21]
+        P12 = self.state_server.state_cov[0:21,21:old_cols] 
 
-        # Fill in the augmented state covariance.
-        self.state_server.state_cov[old_rows:, :old_cols] = J.dot(self.state_server.state_cov[:21, :old_cols])
-        self.state_server.state_cov[:old_rows, old_cols:] = np.transpose(self.state_server.state_cov[old_rows:, :old_cols])
-        self.state_server.state_cov[old_rows:, old_cols:] = J.dot(self.state_server.state_cov[:21, :21]).dot(np.transpose(J))
+        # self.state_server.state_cov[old_rows:, :old_cols] = J.dot(self.state_server.state_cov[:21, :old_cols])
+        self.state_server.state_cov[old_rows:, :21] = J.dot(P11)
+        self.state_server.state_cov[old_rows:, 21:old_cols] = J.dot(P12)
+        self.state_server.state_cov[:old_rows, old_cols:] = np.transpose(self.state_server.state_cov[old_rows:old_rows+6, :old_cols])
+        self.state_server.state_cov[old_rows:, old_cols:] = J.dot(P11).dot(np.transpose(J))
+
 
         # Fix the covariance to be symmetric
         self.state_server.state_cov = (self.state_server.state_cov + np.transpose(self.state_server.state_cov)) /2.0
@@ -518,7 +522,7 @@ class MSCKF(object):
                 tracked_feature_num+=1
 
         # update the tracking rate
-        self.tracking_rate = tracked_feature_num / (curr_feature_num+1e-10) #adding a very small value to the denominator to avoid zero division errors , just incase 
+        self.tracking_rate = tracked_feature_num /(curr_feature_num+1e-10) #adding a very small value to the denominator to avoid zero division errors , just incase 
 
     def measurement_jacobian(self, cam_state_id, feature_id):
         """
@@ -650,18 +654,59 @@ class MSCKF(object):
         if H.shape[0] > H.shape[1]:
             # Perform QR decomposition on H  - https://numpy.org/doc/stable/reference/generated/numpy.linalg.qr.html
             Q,R = np.linalg.qr(H)
+            H_temp= np.transpose(Q).dot(H) 
+            r_temp = np.transpose(Q).dot(r)
+            H_thin = H_temp[:21+len(self.state_server.cam_states)*6]
+            r_thin = r_temp[:21+len(self.state_server.cam_states)*6]
+
+        else:
+            H_thin = H 
+            r_thin = r
             
         # Compute the Kalman gain.
+        P = self.state_server.state_cov
+        S = H_thin.dot(P).dot(np.transpose(H_thin)) + (self.config.observation_noise * np.eye(len(H_thin)))
+        K_transpose = np.linalg.solve(S, H_thin.dot(P))
+        K = np.transpose(K_transpose) 
 
         # Compute the error of the state.
-        
+
+        delta_x = K.dot(r_thin)
+
         # Update the IMU state.
+        delta_x_imu = delta_x[:21] 
+
+        if np.linalg.norm(delta_x_imu[6:9]) > 0.5 or np.linalg.norm(delta_x_imu[12:15])>1.0:
+            print("Delta Velocity ",np.linalg.norm(delta_x_imu[6:9]))
+            print("Delta Position ",np.linalg.norm(delta_x_imu[12:15]))
+            print("Update change is too large")
+
+        dq_imu = small_angle_quaternion(delta_x_imu[0:3])
+        self.state_server.imu_state.orientation = quaternion_multiplication(dq_imu,self.state_server.imu_state.orientation)
+        self.state_server.imu_state.gyro_bias += delta_x_imu[3:6]
+        self.state_server.imu_state.velocity  += delta_x_imu[6:9]
+        self.state_server.imu_state.acc_bias  += delta_x_imu[9:12]
+        self.state_server.imu_state.position  += delta_x_imu[12:15]
+        dq_extrinsic = small_angle_quaternion(delta_x_imu[15:18])
+        self.state_server.imu_state.R_imu_cam0 = to_rotation(dq_extrinsic).dot(self.state_server.imu_state.R_imu_cam0)
+        self.state_server.imu_state.t_cam0_imu += delta_x_imu[18:21] 
 
         # Update the camera states.
-       
+        # cam_state_iter = self.state_server.cam_states[0]
+
+        for i,(_,cam_state_iter) in enumerate(self.state_server.cam_states.items()): #range(len(self.state_server.cam_states)):
+            delta_x_cam = delta_x[21+i*6:21+i*6+6]
+            dq_cam = small_angle_quaternion(delta_x_cam[0:3])
+            cam_state_iter.orientation = quaternion_multiplication(dq_cam,cam_state_iter.orientation)
+            cam_state_iter.position +=delta_x_cam[3:]
+
         # Update state covariance.
 
+        I_KH = np.eye(len(K)) - K.dot(H_thin)
+        self.state_server.state_cov = I_KH.dot(self.state_server.state_cov)
         # Fix the covariance to be symmetric
+        self.state_server.state_cov = (self.state_server.state_cov +np.transpose(self.state_server.state_cov ))/2
+
 
     def gating_test(self, H, r, dof):
         P1 = H @ self.state_server.state_cov @ H.T
