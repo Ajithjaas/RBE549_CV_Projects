@@ -8,7 +8,6 @@ import time
 from collections import namedtuple
 
 
-
 class IMUState(object):
     # id for next IMU state
     next_id = 0

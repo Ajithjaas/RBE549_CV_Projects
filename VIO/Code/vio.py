@@ -30,6 +30,7 @@ class VIO(object):
     def process_img(self):
         while True:
             img_msg = self.img_queue.get()
+            self
             if img_msg is None:
                 self.feature_queue.put(None)
                 return
@@ -90,7 +91,7 @@ if __name__ == '__main__':
 
     img_queue = Queue()
     imu_queue = Queue()
-    # gt_queue = Queue()
+    gt_queue = Queue()
 
     config = ConfigEuRoC()
     msckf_vio = VIO(config, img_queue, imu_queue, viewer=viewer)
@@ -102,7 +103,10 @@ if __name__ == '__main__':
         dataset.imu, imu_queue, duration, ratio)
     img_publisher = DataPublisher(
         dataset.stereo, img_queue, duration, ratio)
+    gt_publisher = DataPublisher(
+        dataset.groundtruth, gt_queue, duration)
 
     now = time.time()
     imu_publisher.start(now)
     img_publisher.start(now)
+    gt_publisher.start(now)
