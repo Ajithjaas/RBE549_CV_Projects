@@ -103,10 +103,10 @@ if __name__ == '__main__':
         dataset.imu, imu_queue, duration, ratio)
     img_publisher = DataPublisher(
         dataset.stereo, img_queue, duration, ratio)
-    gt_publisher = DataPublisher(
-        dataset.groundtruth, gt_queue, duration)
+    # gt_publisher = DataPublisher(
+    #     dataset.groundtruth, gt_queue, duration)
 
     now = time.time()
     imu_publisher.start(now)
     img_publisher.start(now)
-    gt_publisher.start(now)
+    # gt_publisher.start(now)

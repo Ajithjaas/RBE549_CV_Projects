@@ -294,7 +294,7 @@ if __name__ == '__main__':
     now = time.time()
     imu_publisher.start(now)
     img_publisher.start(now)
-    # gt_publisher.start(now)
+    gt_publisher.start(now)
 
     def print_msg(in_queue, source):
         while True:
